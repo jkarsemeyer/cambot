@@ -1,47 +1,98 @@
 // Hand and face tracking (Google MediaPipe). The engine and models ship in app/vendor and app/models.
+// Each tracker runs in its own worker (tracking-worker.js), so the two run side by side on separate
+// processor cores and never hold up drawing. The page sends a small copy of each camera frame and
+// keeps drawing with the latest result it has.
 
-import { FilesetResolver, HandLandmarker, FaceLandmarker } from "../vendor/tasks-vision/vision_bundle.mjs";
 import { withTimeout } from "./util.js";
 
 const here = path => new URL(path, document.baseURI).href;
 const VISION_WASM = here("vendor/tasks-vision/wasm");
-const HAND_MODEL = here("models/hand_landmarker.task");
-const FACE_MODEL = here("models/face_landmarker.task");
+const MODELS = { hands: here("models/hand_landmarker.task"), face: here("models/face_landmarker.task") };
 
-let vision = null;
+// Tracking input size. The models work at about 200 px internally, so 640×360 loses no accuracy
+// but makes each frame much cheaper to hand over than the full camera picture.
+export const TRACK_W = 640, TRACK_H = 360;
 
-// Processor first (reliable everywhere); graphics card first only when the user turns it on.
-async function create(Task, options, preferGpu, onStage) {
-  vision ||= await withTimeout(FilesetResolver.forVisionTasks(VISION_WASM), 15000, "Loading the tracking engine");
-  const order = preferGpu ? ["GPU", "CPU"] : ["CPU", "GPU"];
-  let lastErr;
-  for (const delegate of order) {
-    const where = delegate === "GPU" ? "graphics card" : "processor";
-    onStage && onStage(`starting on ${where}…`);
+function startWorker(kind, preferGpu, onStage) {
+  return new Promise((resolve, reject) => {
+    const worker = new Worker(new URL("./tracking-worker.js", import.meta.url), { type: "module", name: `${kind} tracking` });
+    let busy = false, onResult = null;
+    const tracker = {
+      kind,
+      get busy() { return busy; },
+      // Takes ownership of the bitmap. Returns false (and closes it) if a frame is already in flight.
+      send(bitmap, ts) {
+        if (busy) { bitmap.close(); return false; }
+        busy = true;
+        worker.postMessage({ type: "frame", bitmap, ts }, [bitmap]);
+        return true;
+      },
+      onResult(fn) { onResult = fn; },
+      close() { worker.terminate(); },
+    };
+    worker.onerror = e => reject(new Error(e.message || "Tracking worker failed to start"));
+    worker.onmessage = ({ data }) => {
+      switch (data.type) {
+        case "loaded":
+          onStage && onStage(`starting on ${preferGpu ? "graphics card" : "processor"}…`);
+          worker.postMessage({ type: "init", kind, wasm: VISION_WASM, model: MODELS[kind], preferGpu });
+          break;
+        case "ready": resolve({ tracker, where: data.where }); break;
+        case "error": worker.terminate(); reject(new Error(data.message)); break;
+        case "warn": console.warn(`${kind} tracking:`, data.message); break;
+        case "result":
+          busy = false;
+          if (onResult) onResult(data.landmarks, data.ts);
+          break;
+      }
+    };
+  });
+}
+
+// Backup: the same tracker on the page itself (the old way). Slower, since it holds up drawing
+// while it works, but it keeps tracking alive if a worker can't start on some machine.
+async function startInPage(kind, preferGpu, onStage) {
+  const { FilesetResolver, HandLandmarker, FaceLandmarker } = await import("../vendor/tasks-vision/vision_bundle.mjs");
+  const vision = await FilesetResolver.forVisionTasks(VISION_WASM);
+  const Task = kind === "hands" ? HandLandmarker : FaceLandmarker;
+  const extra = kind === "hands"
+    ? { numHands: 2, minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5 }
+    : { numFaces: 1 };
+  let task = null, where = "", lastErr;
+  for (const delegate of preferGpu ? ["GPU", "CPU"] : ["CPU", "GPU"]) {
     try {
-      const tracker = await withTimeout(
-        Task.createFromOptions(vision, { ...options, baseOptions: { ...options.baseOptions, delegate } }),
-        delegate === "GPU" ? 20000 : 45000, `Starting on the ${where}`);
-      return { tracker, where };
-    } catch (e) {
-      lastErr = e;
-      onStage && onStage(`${where} failed, trying another way…`);
-    }
+      onStage && onStage(`starting on ${delegate === "GPU" ? "graphics card" : "processor"} (backup mode)…`);
+      task = await Task.createFromOptions(vision, { baseOptions: { modelAssetPath: MODELS[kind], delegate }, runningMode: "VIDEO", ...extra });
+      where = delegate === "GPU" ? "graphics card" : "processor";
+      break;
+    } catch (e) { lastErr = e; }
   }
-  throw lastErr;
+  if (!task) throw lastErr;
+  let onResult = null;
+  const tracker = {
+    kind, busy: false,
+    send(bitmap, ts) {
+      let lm = null;
+      try { const r = task.detectForVideo(bitmap, ts); lm = kind === "hands" ? r.landmarks : r.faceLandmarks; }
+      catch (e) { console.warn(e); }
+      finally { bitmap.close(); }
+      if (onResult) onResult(lm, ts);
+      return true;
+    },
+    onResult(fn) { onResult = fn; },
+    close() { task.close(); },
+  };
+  return { tracker, where: `${where}, backup mode` };
 }
 
-export function createHandTracker(preferGpu, onStage) {
-  return create(HandLandmarker, {
-    baseOptions: { modelAssetPath: HAND_MODEL },
-    runningMode: "VIDEO", numHands: 2,
-    minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5,
-  }, preferGpu, onStage);
+async function start(kind, preferGpu, onStage) {
+  try {
+    return await withTimeout(startWorker(kind, preferGpu, onStage), 60000, `Starting ${kind} tracking`);
+  } catch (e) {
+    console.warn(`${kind} tracking worker failed, using backup mode`, e);
+    return withTimeout(startInPage(kind, preferGpu, onStage), 60000, `Starting ${kind} tracking`);
+  }
 }
 
-export function createFaceTracker(preferGpu, onStage) {
-  return create(FaceLandmarker, {
-    baseOptions: { modelAssetPath: FACE_MODEL },
-    runningMode: "VIDEO", numFaces: 1,
-  }, preferGpu, onStage);
-}
+export const createHandTracker = (preferGpu, onStage) => start("hands", preferGpu, onStage);
+export const createFaceTracker = (preferGpu, onStage) => start("face", preferGpu, onStage);

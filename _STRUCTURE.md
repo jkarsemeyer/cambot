@@ -9,7 +9,8 @@ cambot/
 │   │   ├── main.js             Start-up, frame loop, effect switching, panel
 │   │   ├── effects/            One file per effect. index.js lists them
 │   │   ├── gestures.js         Tracking points → fist / open / pinch / eyes / mouth
-│   │   ├── trackers.js         Loads hand and face tracking
+│   │   ├── trackers.js         Starts hand and face tracking, each in its own worker
+│   │   ├── tracking-worker.js  Runs one tracker off the main thread
 │   │   ├── audio.js            Sounds, voice effect, the two outputs, voice test
 │   │   ├── draw.js             Glows, lightning, particles, glowing eyes
 │   │   ├── vcam.js             Sends the picture to CAMBOT Camera

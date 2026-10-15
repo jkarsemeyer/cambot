@@ -5,7 +5,7 @@ import { bus } from "./bus.js";
 import { audio } from "./audio.js";
 import { vcam } from "./vcam.js";
 import { readHands, readFace } from "./gestures.js";
-import { createHandTracker, createFaceTracker } from "./trackers.js";
+import { createHandTracker, createFaceTracker, TRACK_W } from "./trackers.js";
 import { Holds, withTimeout, rand, escapeHtml } from "./util.js";
 import { HAND_BONES, vignette } from "./draw.js";
 import { EFFECTS } from "./effects/index.js";
@@ -131,11 +131,18 @@ async function startSound() {
 let handTracker = null, faceTracker = null;
 async function startHands(stage) {
   const { tracker, where } = await createHandTracker(cfg.gpu, stage);
+  tracker.onResult(lm => { trackN.hands++; hands = readHands({ landmarks: lm }, view); });
   handTracker = tracker;
   return `running on ${where}`;
 }
 async function startFace(stage) {
   const { tracker, where } = await createFaceTracker(cfg.gpu, stage);
+  tracker.onResult(lm => {
+    trackN.face++;
+    const fc = readFace({ faceLandmarks: lm }, view);
+    const now = performance.now();
+    if (fc) { face = fc; faceSeen = now; } else if (now - faceSeen > 300) face = null;
+  });
   faceTracker = tracker;
   return `running on ${where}`;
 }
@@ -209,25 +216,21 @@ function useEffect(id) {
 }
 
 /* ---------------------------------------------------------------- frame loop */
-let lastFrame = performance.now(), lastVideoTime = -1, frameN = 0, hands = [], face = null, faceSeen = -1e9;
+let lastFrame = performance.now(), lastVideoTime = -1, hands = [], face = null, faceSeen = -1e9, grabbing = false;
 let fpsAcc = 0, fpsN = 0, lastUI = 0;
+const trackN = { hands: 0, face: 0 };
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
   fpsAcc += dt; fpsN++;
-  if (fpsAcc > 0.5) { $("fpsChip").textContent = `${Math.round(fpsN / fpsAcc)} fps`; fpsAcc = 0; fpsN = 0; }
-
-  if (video.readyState >= 2 && video.currentTime !== lastVideoTime) {
-    lastVideoTime = video.currentTime;
-    frameN++;
-    if (handTracker) { try { hands = readHands(handTracker.detectForVideo(video, ts()), view); } catch (e) { console.warn(e); } }
-    if (faceTracker && (frameN & 1) === 0) {
-      try {
-        const fc = readFace(faceTracker.detectForVideo(video, ts()), view);
-        if (fc) { face = fc; faceSeen = now; } else if (now - faceSeen > 300) face = null;
-      } catch (e) { console.warn(e); }
-    }
+  if (fpsAcc > 0.5) {
+    const r = n => Math.round(n / fpsAcc);
+    $("fpsChip").textContent = `${r(fpsN)} fps · hands ${r(trackN.hands)} · face ${r(trackN.face)}`;
+    $("fpsChip").title = "Drawing rate, then how many times a second each tracker updates";
+    fpsAcc = 0; fpsN = 0; trackN.hands = 0; trackN.face = 0;
   }
+
+  feedTrackers();
 
   const f = { t: now, dt, hands, face, W: view.W, H: view.H };
   try { inst.update(f); } catch (e) { console.error(e); }
@@ -235,6 +238,27 @@ function frame(now) {
   audio.setVoiceLevel(cfg.voiceForce ? 1 : (inst.voice || 0));
   if (vcam.running) vcam.send(out, now, cfg.mirror);
   if (now - lastUI > 100) { lastUI = now; updateUI(); }
+}
+// Hand each new camera frame to whichever trackers are free. They run in workers and report back
+// when done; drawing never waits for them. A tracker still busy with the last frame skips this one.
+function feedTrackers() {
+  if (grabbing || video.readyState < 2 || video.currentTime === lastVideoTime) return;
+  const free = [handTracker, faceTracker].filter(t => t && !t.busy);
+  if (!free.length) return;
+  lastVideoTime = video.currentTime;
+  grabbing = true;
+  const t = ts();
+  const vw = video.videoWidth || 1280, vh = video.videoHeight || 720;
+  const opts = { resizeWidth: TRACK_W, resizeHeight: Math.round(TRACK_W * vh / vw / 2) * 2, resizeQuality: "low" };
+  // Shrink the camera frame once, then copy the small version for the second tracker.
+  createImageBitmap(video, opts)
+    .then(async first => {
+      const bmps = [first];
+      for (let i = 1; i < free.length; i++) bmps.push(await createImageBitmap(first));
+      bmps.forEach((b, i) => free[i].send(b, t));
+    })
+    .catch(e => console.warn(e))
+    .finally(() => { grabbing = false; });
 }
 let lastTs = 0;
 const ts = () => { let n = performance.now(); if (n <= lastTs) n = lastTs + 1; lastTs = n; return n; };
