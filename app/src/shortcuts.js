@@ -1,6 +1,6 @@
 // Gesture shortcuts that work in every mode.
 //
-// Mode switching:  point at an open hand → Storm Caller (lightning), point at a fist → Fire Palm.
+// Mode switching:  point at an open hand → Storm Caller (lightning), at a fist → Fire Palm, at a pinch → Star Map.
 // Layers on top of whatever mode is running (they change the finished picture, so calls see them):
 //   Finger frame   both hands make an L (thumb and index out), framing a rectangle → zoom in on your face. Again to zoom out.
 //   Mirror         both open hands held upright, side by side → mirror at the middle line. Again for the other side, again for off.
@@ -13,10 +13,11 @@
 import { clamp, rand, dist, Holds } from "./util.js";
 import { glowDot } from "./draw.js";
 
-export const MODE_FOR = { open: "storm-caller", fist: "fire-palm" };
+export const MODE_FOR = { open: "storm-caller", fist: "fire-palm", pinch: "star-map" };
+const MODE_LABEL = { "storm-caller": "Storm Caller", "fire-palm": "Fire Palm", "star-map": "Star Map" };
 
 export const SHORTCUTS = [
-  { id: "select", name: "Switch mode", how: "Point at an open hand for Storm Caller, or at a fist for Fire Palm" },
+  { id: "select", name: "Switch mode", how: "Point at an open hand for Storm Caller, a fist for Fire Palm, or a pinch for Star Map" },
   { id: "zoom", name: "Finger frame zoom", how: "Make an L with both hands to frame a rectangle. Again to zoom out" },
   { id: "mirror", name: "Mirror", how: "Both open hands upright, side by side. Again for the other side, again for off" },
   { id: "confetti", name: "Confetti", how: "Thumbs up" },
@@ -25,7 +26,7 @@ export const SHORTCUTS = [
 
 const HOLD = { select: 700, zoom: 500, mirror: 600, confetti: 350, glitch: 400 };
 const CONFETTI_COLORS = ["#ff4d6d", "#ffd23f", "#3ee08f", "#4cc9f0", "#b388ff", "#ffffff"];
-const MODE_COLORS = { "storm-caller": [120, 200, 255], "fire-palm": [255, 140, 40] };
+const MODE_COLORS = { "storm-caller": [120, 200, 255], "fire-palm": [255, 140, 40], "star-map": [200, 190, 255] };
 const ease = x => x * x * (3 - 2 * x);
 
 export function createShortcuts({ play, emit, switchTo, currentMode, modeIsIdle }) {
@@ -92,16 +93,17 @@ export function createShortcuts({ play, emit, switchTo, currentMode, modeIsIdle 
       let sel = null;
       if (two) {
         for (const [a, b] of [[two[0], two[1]], [two[1], two[0]]]) {
-          if (!a.point || !(b.open || b.fist) || b.point) continue;
-          if (dist(a.tip, b.palm) < b.size * 1.15) { sel = { target: MODE_FOR[b.open ? "open" : "fist"], at: b.palm }; break; }
+          if (!a.point || b.point) continue;
+          const shape = b.fist ? "fist" : b.pinch ? "pinch" : b.open ? "open" : null;
+          if (shape && dist(a.tip, b.palm) < b.size * 1.15) { sel = { target: MODE_FOR[shape], at: b.palm }; break; }
         }
       }
       const selKey = sel ? `select:${sel.target}` : null;
-      for (const k of ["select:storm-caller", "select:fire-palm"]) if (k !== selKey) { holds.clear(k); latched.delete(k); }
+      for (const k of Object.values(MODE_FOR).map(m => `select:${m}`)) if (k !== selKey) { holds.clear(k); latched.delete(k); }
       if (sel) {
-        busy = true;
         const same = sel.target === currentMode();
-        const label = sel.target === "storm-caller" ? "Storm Caller" : "Fire Palm";
+        const label = MODE_LABEL[sel.target];
+        if (!same) busy = true;   // pointing at a hand for the mode you're already in is left to the mode
         if (!same && modeIsIdle()) {
           HOLD[selKey] = HOLD.select;
           candidate = { id: "select", frac: holds.frac(selKey, HOLD.select, t), at: sel.at, label, color: MODE_COLORS[sel.target] };
@@ -112,7 +114,7 @@ export function createShortcuts({ play, emit, switchTo, currentMode, modeIsIdle 
             emit("shortcut_mode", label);
           }
         } else {
-          candidate = { id: "select", frac: 0, at: sel.at, label: same ? `${label} is on` : "Finish this effect first", color: [200, 205, 215] };
+          if (!same) candidate = { id: "select", frac: 0, at: sel.at, label: "Finish this effect first", color: [200, 205, 215] };
         }
       }
 

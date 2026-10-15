@@ -3,5 +3,6 @@
 
 import stormCaller from "./storm-caller.js";
 import firePalm from "./fire-palm.js";
+import starMap from "./star-map.js";
 
-export const EFFECTS = [stormCaller, firePalm];
+export const EFFECTS = [stormCaller, firePalm, starMap];

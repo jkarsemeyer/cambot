@@ -224,6 +224,18 @@ class Output {
     o.connect(g).connect(this.sfx); o.start(t); o.stop(t + 0.2);
   }
 
+  // Soft bell: a sine plus a slightly detuned octave, with a long ring. delay in seconds.
+  chime(freq = 880, vol = 0.12, delay = 0) {
+    const ac = this.ctx, t = ac.currentTime + delay;
+    for (const [mult, v, len] of [[1, 1, 1.6], [2.003, 0.35, 0.9], [3.01, 0.12, 0.5]]) {
+      const o = ac.createOscillator(), g = ac.createGain();
+      o.type = "sine"; o.frequency.setValueAtTime(freq * mult, t);
+      g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(vol * v, t + 0.006);
+      g.gain.exponentialRampToValueAtTime(0.0005, t + len);
+      o.connect(g).connect(this.sfx); o.start(t); o.stop(t + len + 0.05);
+    }
+  }
+
   /* continuous sounds: return { set(amount 0..1), stop() } */
   loop(kind) {
     const ac = this.ctx;
