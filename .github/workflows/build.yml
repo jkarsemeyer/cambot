@@ -1,0 +1,62 @@
+name: Build Windows installer
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows:
+    runs-on: windows-2025
+    env:
+      VERSION: 0.2.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: microsoft/setup-msbuild@v2
+
+      - name: Build CAMBOT Camera (virtual webcam DLL)
+        shell: pwsh
+        run: |
+          $sc = "$env:GITHUB_WORKSPACE\native\softcam"
+          New-Item -ItemType Directory -Force "$sc\dist\bin\x64", "$sc\dist\lib\x64", "$env:GITHUB_WORKSPACE\native\build" | Out-Null
+          msbuild "$sc\src\softcam\softcam.vcxproj" /m /nologo /v:minimal /p:Configuration=Release /p:Platform=x64 "/p:SolutionDir=$sc\\"
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          Copy-Item "$sc\x64\Release\softcam.dll" "$env:GITHUB_WORKSPACE\native\build\cambot_camera.dll"
+          Get-Item "$env:GITHUB_WORKSPACE\native\build\cambot_camera.dll" | Format-List Name, Length
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm version ${{ env.VERSION }} --no-git-tag-version --allow-same-version
+
+      - name: Build installer
+        run: npx electron-builder --win --x64 --publish never
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CAMBOT-Setup-${{ env.VERSION }}
+          path: dist/*.exe
+          if-no-files-found: error
+
+      - name: Publish release
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $exe = Get-ChildItem dist\CAMBOT-Setup-*.exe | Select-Object -First 1
+          $notes = "Automatic build of $($env:GITHUB_SHA.Substring(0,7)). Download $($exe.Name), run it, and approve the Windows prompt."
+          gh release create "v$env:VERSION" "$($exe.FullName)" --title "CAMBOT $env:VERSION" --notes "$notes" --latest

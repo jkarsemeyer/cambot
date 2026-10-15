@@ -1,0 +1,8 @@
+node_modules/
+dist/
+native/build/
+native/softcam/dist/
+**/x64/
+**/Win32/
+*.user
+.vs/

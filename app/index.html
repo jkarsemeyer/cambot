@@ -1,0 +1,252 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CAMBOT</title>
+<style>
+/* Layout: full-bleed camera stage on the left, a control rack on the right. H hides the rack. */
+:root {
+  --ink: #06080c;
+  --panel: #0c1017;
+  --panel-2: #121823;
+  --line: #1e2633;
+  --text: #d6dde8;
+  --muted: #7c889a;
+  --volt: #8fd3ff;
+  --volt-hot: #e8f7ff;
+  --warn: #ffb35c;
+  --ok: #7dffb2;
+  --f-display: "Bahnschrift", "DIN Condensed", "Arial Narrow", Impact, sans-serif;
+  --f-body: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "Cascadia Mono", "Consolas", ui-monospace, Menlo, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+body:not(.desktop) .desktop-only { display: none; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--ink); color: var(--text); font: 14px/1.5 var(--f-body); overflow: hidden; }
+
+#app { display: grid; grid-template-columns: minmax(0, 1fr) 360px; height: 100%; }
+body.clean #app { grid-template-columns: minmax(0, 1fr); }
+body.clean #panel, body.clean #coach, body.clean #corner { display: none; }
+body.clean { cursor: none; }
+
+#stage { position: relative; background: #000; min-width: 0; overflow: hidden; }
+#stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: contain; display: block; }
+
+#coach {
+  position: absolute; left: 50%; bottom: 28px; transform: translateX(-50%);
+  font: 600 13px/1 var(--f-mono); letter-spacing: .1em; text-transform: uppercase;
+  color: var(--volt-hot); background: rgba(6, 8, 12, .72); border: 1px solid var(--line);
+  padding: 10px 16px; border-radius: 999px; white-space: nowrap; pointer-events: none; max-width: calc(100% - 32px); overflow: hidden; text-overflow: ellipsis;
+}
+#coach .bar { display: block; height: 2px; margin-top: 8px; background: var(--line); border-radius: 2px; overflow: hidden; }
+#coach .bar i { display: block; height: 100%; width: 0; background: var(--volt); }
+#corner { position: absolute; top: 14px; left: 14px; display: flex; gap: 8px; }
+.chip { font: 500 11px/1 var(--f-mono); letter-spacing: .06em; text-transform: uppercase; padding: 6px 9px; border-radius: 4px; background: rgba(6,8,12,.7); border: 1px solid var(--line); color: var(--muted); }
+.chip.on { color: var(--ink); background: var(--volt); border-color: var(--volt); }
+
+#gate { position: absolute; inset: 0; display: grid; place-items: center; background: radial-gradient(ellipse at 50% 20%, #132034 0%, var(--ink) 70%); padding: 24px; z-index: 5; }
+#gate .card { max-width: 460px; width: 100%; }
+#gate h1 { font: 700 64px/0.9 var(--f-display); letter-spacing: .01em; margin: 0 0 12px; text-transform: uppercase; color: var(--volt-hot); }
+#gate h1 small { display: block; font: 500 12px/1 var(--f-mono); letter-spacing: .2em; color: var(--volt); margin-bottom: 14px; }
+#gate p { color: var(--muted); margin: 0 0 22px; max-width: 60ch; }
+
+button, select, input { font: inherit; color: inherit; }
+.btn { background: var(--volt); color: var(--ink); border: 0; border-radius: 6px; padding: 12px 18px; font-weight: 600; cursor: pointer; }
+.btn:hover { background: var(--volt-hot); }
+.btn:disabled { opacity: .45; cursor: default; }
+.btn.ghost { background: transparent; color: var(--text); border: 1px solid var(--line); padding: 7px 11px; font-size: 12px; }
+.btn.ghost:hover:not(:disabled) { border-color: var(--volt); color: var(--volt-hot); }
+.btn.small { padding: 3px 8px; font-size: 11px; }
+:focus-visible { outline: 2px solid var(--volt); outline-offset: 2px; }
+
+#panel { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; display: flex; flex-direction: column; }
+#panel header { padding: 16px 18px 12px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+#panel header h2 { font: 700 24px/1 var(--f-display); text-transform: uppercase; margin: 0; letter-spacing: .03em; }
+#effectPicker { display: flex; flex-wrap: wrap; gap: 6px; }
+.fx { background: var(--panel-2); border: 1px solid var(--line); color: var(--text); border-radius: 6px; padding: 7px 10px; cursor: pointer; font-size: 13px; display: inline-flex; gap: 7px; align-items: baseline; }
+.fx b { font: 500 10px var(--f-mono); color: var(--muted); }
+.fx.on { border-color: var(--volt); color: var(--volt-hot); }
+.fx.on b { color: var(--volt); }
+section { padding: 14px 18px 16px; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+section h3 { margin: 0; font: 500 11px/1 var(--f-mono); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+.blurb { margin: 0; color: var(--muted); font-size: 13px; }
+
+.syslist { list-style: none; margin: 0; padding: 0; display: grid; gap: 5px; }
+.sys { display: grid; grid-template-columns: 10px 104px minmax(0, 1fr) auto; gap: 8px; align-items: center; font-size: 12.5px; }
+.sys .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--line); }
+.sys.starting .dot { background: var(--volt); animation: pulse 1s ease-in-out infinite; }
+.sys.ok .dot { background: var(--ok); }
+.sys.error .dot { background: var(--warn); }
+.sys .msg { font: 11px/1.4 var(--f-mono); color: var(--muted); overflow-wrap: anywhere; }
+.sys.error .msg { color: var(--warn); }
+@keyframes pulse { 50% { opacity: .3; } }
+
+.seq { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
+.seq li { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 5px; font-size: 13px; color: var(--muted); }
+.seq li b { font: 500 11px var(--f-mono); color: var(--line); }
+.seq li em { font: normal 11px var(--f-mono); font-variant-numeric: tabular-nums; }
+.seq li.active { background: var(--panel-2); color: var(--volt-hot); }
+.seq li.active b { color: var(--volt); }
+.seq li.done { color: var(--text); }
+
+.hands { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.readout { background: var(--panel-2); border: 1px solid var(--line); border-radius: 6px; padding: 7px 10px; font: 12px/1.4 var(--f-mono); }
+.readout div:first-child { color: var(--muted); font-size: 10px; letter-spacing: .12em; text-transform: uppercase; }
+
+#log { list-style: none; margin: 0; padding: 0; font: 11.5px/1.6 var(--f-mono); max-height: 160px; overflow-y: auto; }
+#log li { display: grid; grid-template-columns: 54px 1fr; color: var(--muted); }
+#log li i { font-style: normal; }
+#log li span { color: var(--text); overflow-wrap: anywhere; }
+#log li:first-child span { color: var(--volt-hot); }
+
+.row { display: grid; grid-template-columns: 112px minmax(0, 1fr) auto; gap: 10px; align-items: center; font-size: 13px; }
+.row output { font: 11px var(--f-mono); color: var(--muted); min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; }
+.row.two { grid-template-columns: 112px minmax(0, 1fr); }
+input[type=range] { width: 100%; accent-color: var(--volt); }
+select { width: 100%; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; font-size: 12px; min-width: 0; }
+.toggle { display: flex; gap: 8px; align-items: center; font-size: 13px; cursor: pointer; }
+.toggle input { accent-color: var(--volt); width: 16px; height: 16px; flex: none; }
+.meter { height: 6px; background: var(--panel-2); border-radius: 3px; overflow: hidden; }
+.meter i { display: block; height: 100%; width: 0; background: var(--ok); }
+.meter.voice i { background: var(--volt); }
+.meters { display: grid; grid-template-columns: 70px 1fr; gap: 6px 10px; align-items: center; font: 11px var(--f-mono); color: var(--muted); }
+.note { font-size: 12px; color: var(--muted); margin: 0; }
+.note.warn { color: var(--warn); }
+.note b { color: var(--text); font-weight: 600; }
+.btns { display: flex; flex-wrap: wrap; gap: 6px; }
+kbd { font: 11px var(--f-mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 4px; padding: 1px 6px; color: var(--text); }
+.keys { display: flex; flex-wrap: wrap; gap: 6px 12px; font-size: 12px; color: var(--muted); }
+.sub { font: 500 10px var(--f-mono); letter-spacing: .12em; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+
+@media (max-width: 900px) {
+  body { overflow: auto; }
+  #app { grid-template-columns: 1fr; grid-template-rows: 60vh auto; height: auto; }
+  #panel { border-left: 0; border-top: 1px solid var(--line); }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; animation: none !important; } }
+</style>
+</head>
+<body>
+<div id="app">
+  <main id="stage">
+    <canvas id="out" width="1280" height="720"></canvas>
+    <canvas id="overlay" width="1280" height="720"></canvas>
+    <div id="corner"><span class="chip" id="stateChip">idle</span><span class="chip" id="fpsChip">-- fps</span></div>
+    <div id="coach"><span id="coachText"></span><span class="bar"><i id="coachBar"></i></span></div>
+
+    <div id="gate">
+      <div class="card">
+        <h1><small>CAMBOT</small>Gesture effects</h1>
+        <p>Hand and face tracking trigger visual effects, sounds and a voice effect. Everything runs on this computer. Nothing is uploaded.</p>
+        <button class="btn" id="startBtn">Start camera and microphone</button>
+        <div id="fileWarn" hidden>
+          <p style="margin-top:16px;color:var(--warn)">This page was opened as a file. Run CAMBOT from the desktop app instead.</p>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <aside id="panel">
+    <header>
+      <h2>CAMBOT</h2>
+      <div id="effectPicker"></div>
+    </header>
+
+    <section>
+      <h3>System</h3>
+      <ul class="syslist" id="sysList"></ul>
+    </section>
+
+    <section>
+      <h3>Effect</h3>
+      <p class="blurb" id="effectBlurb"></p>
+      <ol class="seq" id="seq"></ol>
+      <div class="btns"><button class="btn ghost" id="testBtn">Test effect (Space)</button></div>
+    </section>
+
+    <section>
+      <h3>Effect settings</h3>
+      <div id="fxSettings" style="display:grid;gap:10px"></div>
+      <div class="btns"><button class="btn ghost" id="fxReset">Reset to defaults</button></div>
+    </section>
+
+    <section>
+      <h3>Voice</h3>
+      <div class="meters">
+        <span>Mic</span><div class="meter"><i id="micMeter"></i></div>
+        <span>Effect</span><div class="meter voice"><i id="voiceLevel"></i></div>
+      </div>
+      <div class="row"><label for="pitch">Pitch</label><input type="range" id="pitch" min="0.5" max="1.4" step="0.01"><output id="pitchV"></output></div>
+      <div class="row"><label for="electric">Electric</label><input type="range" id="electric" min="0" max="1" step="0.01"><output id="electricV"></output></div>
+      <label class="toggle"><input type="checkbox" id="voiceForce"> Keep the voice effect on (for testing)</label>
+      <div class="sub">Test your voice</div>
+      <div class="btns">
+        <button class="btn ghost" id="recBtn">Record 5 seconds</button>
+        <button class="btn ghost" id="playDry" disabled>Play original</button>
+        <button class="btn ghost" id="playFx" disabled>Play with effect</button>
+      </div>
+      <p class="note" id="testNote">Record yourself, then play it back with and without the effect.</p>
+    </section>
+
+    <section>
+      <h3>Hear it on this computer</h3>
+      <div class="row two"><label for="monDev">Play through</label><select id="monDev"><option value="">System default</option></select></div>
+      <label class="toggle"><input type="checkbox" id="hearSfx"> Sound effects</label>
+      <label class="toggle"><input type="checkbox" id="hearVoice"> My voice, live</label>
+      <p class="note warn" id="fbWarn" hidden>Wear headphones to hear your voice live, or the speakers will feed back into the mic.</p>
+      <div class="row"><label for="monitorVol">Volume</label><input type="range" id="monitorVol" min="0" max="1" step="0.01"><output id="monitorVolV"></output></div>
+      <div class="row"><label for="sfxVol">Effects level</label><input type="range" id="sfxVol" min="0" max="1" step="0.01"><output id="sfxVolV"></output></div>
+    </section>
+
+    <section>
+      <h3>Send to calls</h3>
+      <div class="desktop-only">
+        <label class="toggle"><input type="checkbox" id="vcamOn"> Send the picture to “CAMBOT Camera”</label>
+        <p class="note" id="vcamState">In Zoom, Teams or Meet, choose CAMBOT Camera as your camera.</p>
+      </div>
+      <div class="row two"><label for="callDev">Voice to</label><select id="callDev"><option value="">Off: don't send my voice</option></select></div>
+      <label class="toggle"><input type="checkbox" id="callSfx"> Include sound effects</label>
+      <p class="note" id="cableHint"></p>
+    </section>
+
+    <section>
+      <h3>Tracking</h3>
+      <div class="hands">
+        <div class="readout"><div>Screen left</div><div id="h0">no hand</div></div>
+        <div class="readout"><div>Screen right</div><div id="h1">no hand</div></div>
+      </div>
+      <div class="readout"><div>Face</div><div id="faceV">not found</div></div>
+    </section>
+
+    <section>
+      <h3>Event log</h3>
+      <ul id="log"></ul>
+      <div class="btns"><button class="btn ghost" id="copyDiag">Copy diagnostics</button></div>
+    </section>
+
+    <section>
+      <h3>General</h3>
+      <div class="row two"><label for="camDev">Camera</label><select id="camDev"></select></div>
+      <div class="row two"><label for="micDev">Microphone</label><select id="micDev"></select></div>
+      <label class="toggle"><input type="checkbox" id="mirror"> Mirror the screen view</label>
+      <label class="toggle"><input type="checkbox" id="debug"> Show tracking points</label>
+      <label class="toggle"><input type="checkbox" id="gpu"> Track on the graphics card (faster; restart to apply)</label>
+      <div class="keys"><span><kbd>1</kbd>–<kbd>9</kbd> effects</span><span><kbd>Space</kbd> test</span><span><kbd>P</kbd> reset</span><span><kbd>H</kbd> clean view</span><span><kbd>F</kbd> fullscreen</span><span><kbd>D</kbd> tracking</span></div>
+      <div class="btns"><button class="btn ghost" id="cleanBtn">Clean view</button></div>
+    </section>
+  </aside>
+</div>
+<video id="cam" playsinline muted hidden></video>
+<script>
+  if (location.protocol === "file:") {
+    document.getElementById("startBtn").hidden = true;
+    document.getElementById("fileWarn").hidden = false;
+  }
+</script>
+<script type="module" src="src/main.js"></script>
+</body>
+</html>

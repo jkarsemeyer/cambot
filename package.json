@@ -1,0 +1,71 @@
+{
+  "name": "cambot",
+  "productName": "CAMBOT",
+  "version": "0.2.0",
+  "description": "Gesture-triggered webcam effects with a built-in virtual camera.",
+  "author": "Jacob Karsemeyer",
+  "license": "UNLICENSED",
+  "private": true,
+  "main": "electron/main.js",
+  "scripts": {
+    "start": "electron .",
+    "web": "python tools/serve.py",
+    "dist": "electron-builder --win --x64 --publish never"
+  },
+  "dependencies": {
+    "koffi": "2.16.3"
+  },
+  "devDependencies": {
+    "electron": "44.5.1",
+    "electron-builder": "26.17.0"
+  },
+  "build": {
+    "appId": "com.jkarsemeyer.cambot",
+    "productName": "CAMBOT",
+    "copyright": "Jacob Karsemeyer",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "electron/**",
+      "app/**",
+      "build/icon.png",
+      "package.json",
+      "!node_modules/koffi/src/**",
+      "!node_modules/koffi/vendor/**",
+      "!node_modules/koffi/doc/**",
+      "!node_modules/koffi/build/koffi/{darwin,freebsd,linux,musl,openbsd}_*/**",
+      "!node_modules/koffi/build/koffi/win32_{arm64,ia32}/**",
+      "!node_modules/koffi/lib/**"
+    ],
+    "asarUnpack": [
+      "node_modules/koffi/**"
+    ],
+    "extraResources": [
+      {
+        "from": "native/build/cambot_camera.dll",
+        "to": "camera/cambot_camera.dll"
+      }
+    ],
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ],
+      "icon": "build/icon.png"
+    },
+    "nsis": {
+      "oneClick": true,
+      "perMachine": true,
+      "runAfterFinish": true,
+      "include": "build/installer.nsh",
+      "artifactName": "CAMBOT-Setup-${version}.${ext}",
+      "shortcutName": "CAMBOT"
+    },
+    "npmRebuild": false
+  }
+}
