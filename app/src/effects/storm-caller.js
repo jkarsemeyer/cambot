@@ -18,6 +18,8 @@ export default {
     { key: "handsNeeded", label: "Hands needed", type: "select", options: [[1, "1"], [2, "2"]], default: 2 },
     { key: "holdMs", label: "Fist hold", type: "range", min: 200, max: 2000, step: 50, default: 700, format: v => `${v} ms` },
     { key: "upLine", label: "Hands-up line", type: "range", min: 0.25, max: 0.9, step: 0.01, default: 0.6, format: v => `${Math.round(v * 100)}%` },
+    { key: "lingerMs", label: "Stay powered after fists drop", type: "range", min: 500, max: 10000, step: 250, default: 2500, format: v => `${(v / 1000).toFixed(1)} s` },
+    { key: "fadeMs", label: "Eye fade-out", type: "range", min: 200, max: 4000, step: 100, default: 1200, format: v => `${(v / 1000).toFixed(1)} s` },
     { key: "color", label: "Energy colour", type: "select", options: [["storm", "Storm blue"], ["void", "Void violet"], ["ember", "Ember orange"]], default: "storm" },
   ],
   steps: [
@@ -25,7 +27,7 @@ export default {
     { id: "armed", label: "Make fists and hold" },
     { id: "charging", label: "Charging: hum, dark sky, arcs" },
     { id: "struck", label: "Strike: lightning, thunder" },
-    { id: "powered", label: "Powered: eyes and voice" },
+    { id: "powered", label: "Powered: eyes and voice (fades when fists drop)" },
   ],
 
   create(kit) {
@@ -72,7 +74,7 @@ export default {
           armed: two ? "Close both hands into fists" : "Close your hand into a fist",
           charging: "Hold it…",
           struck: "",
-          powered: "Raise open palms and hold to power down",
+          powered: "Keep fists up to stay powered. Drop them or show open palms to power down",
         }[state];
       },
       get voice() { return power; },
@@ -112,6 +114,9 @@ export default {
           case "powered":
             calm = holds.frac("calm", 1000, t);
             if (t - since > 1200 && holds.held("calm", openUpN >= need(), 1000, t)) powerDown(t, "palms");
+            // The effect is only active while your fists are up. Once they've been down
+            // (or out of frame) for the linger time, power down and let the eyes fade.
+            else if (t - since > 1200 && holds.held("drop", fistUpN < need() && openUpN < need(), S.lingerMs, t)) powerDown(t, "fists dropped");
             else if (holds.held("restrike", fistUpN >= need(), S.holdMs * 0.8 + 400, t)) strike(t, hands, H);
             break;
         }
@@ -119,7 +124,7 @@ export default {
         // levels
         const darkT = state === "charging" ? 0.12 + 0.4 * charge : (state === "powered" || state === "struck") ? 0.2 : 0;
         dark = approach(dark, darkT, 1.5, 0.8, dt);
-        power = approach(power, state === "powered" ? 1 : 0, 0.8, 1.0, dt);
+        power = approach(power, state === "powered" ? 1 : 0, 0.8, 1000 / S.fadeMs, dt);
         flash = Math.max(0, flash - dt * 3.2);
         shake = Math.max(0, shake - dt * 2.4);
         for (let i = 0; i < 2; i++) {
