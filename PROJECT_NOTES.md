@@ -17,6 +17,8 @@
 
 - **Gesture shortcuts sit above the modes** (`shortcuts.js`): point at an open hand or fist to switch mode (only while the mode is at rest), plus layers that work in any mode (finger-frame zoom, mirror, confetti, glitch). Layers post-process the finished picture so effects stay aligned. Every shortcut needs a short hold and must be released before it can fire again.
 
+- **Audio levels:** the effect voice is level-matched to your normal voice (within about 1.5 dB) and each output ends in a safety limiter, so voice plus thunder or fire never clips. Measured offline with a synthetic voice through the real chain. The build checks every app file parses, after a syntax error once silently switched the voice to the backup processor.
+
 ## Known limits
 
 - The installer is unsigned, so Windows SmartScreen warns on first run.

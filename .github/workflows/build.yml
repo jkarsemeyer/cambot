@@ -48,6 +48,15 @@ jobs:
           npm ci
           npm version ${{ env.VERSION }} --no-git-tag-version --allow-same-version
 
+      # Catch syntax errors before they ship (a broken file once silently disabled the voice processor).
+      - name: Check app code parses
+        shell: pwsh
+        run: |
+          $files = @(Get-ChildItem app\src -Recurse -Filter *.js) + @(Get-Item app\pitch-worklet.js) + @(Get-ChildItem electron -Filter *.js)
+          $bad = 0
+          foreach ($f in $files) { node --check $f.FullName; if ($LASTEXITCODE -ne 0) { $bad++ } }
+          if ($bad) { Write-Error "$bad file(s) failed to parse"; exit 1 }
+
       - name: Build installer
         run: npx electron-builder --win --x64 --publish never
 

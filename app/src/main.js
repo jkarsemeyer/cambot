@@ -115,7 +115,7 @@ async function startMic() {
   if (micStream) micStream.getTracks().forEach(t => t.stop());
   const id = $("micDev").value || cfg.micDevice || undefined;
   micStream = await withTimeout(navigator.mediaDevices.getUserMedia({
-    audio: { deviceId: id ? { exact: id } : undefined, echoCancellation: false, noiseSuppression: true, autoGainControl: false },
+    audio: { deviceId: id ? { exact: id } : undefined, channelCount: { ideal: 1 }, echoCancellation: false, noiseSuppression: true, autoGainControl: false },
   }), 20000, "Opening the microphone");
   audio.attachMic(micStream);
   fillDevices().catch(() => {});

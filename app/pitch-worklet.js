@@ -1,6 +1,6 @@
 class PitchShift extends AudioWorkletProcessor {
   static get parameterDescriptors() { return [{ name: 'ratio', defaultValue: 0.72, minValue: 0.25, maxValue: 2 }]; }
-  constructor() { super(); this.size = 8192; this.buf = new Float32Array(this.size); this.w = 0; this.phase = 0; this.win = 1200; // grain length in samples (25 ms at 48 kHz): shorter means less delay }
+  constructor() { super(); this.size = 8192; this.buf = new Float32Array(this.size); this.w = 0; this.phase = 0; this.win = 1200; } // win: grain length in samples (25 ms at 48 kHz); shorter means less delay
   read(pos) { pos = ((pos % this.size) + this.size) % this.size; const i = Math.floor(pos), f = pos - i; return this.buf[i] * (1 - f) + this.buf[(i + 1) % this.size] * f; }
   process(inputs, outputs, params) {
     const inp = inputs[0] && inputs[0][0];

@@ -59,6 +59,7 @@ function makeNativePitch(ac) {
    setLevel(0) is your normal voice, setLevel(1) is fully transformed.
    The "mix" param (0..1) is the wet/dry balance when fully transformed: 1 is all effect,
    0.5 blends equal parts effect and your natural voice, which keeps words clearer. */
+const WET_TRIM = 0.5;
 async function makeVoiceChain(ac) {
   let pitch;
   try { pitch = await makeWorkletPitch(ac); }
@@ -71,7 +72,9 @@ async function makeVoiceChain(ac) {
 
   const shaper = ac.createWaveShaper();
   const curve = new Float32Array(1024);
-  for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; curve[i] = Math.tanh(6 * x) / Math.tanh(6); }
+  // Gentle saturation for grit. (It used to be driven far harder, which made the effect voice ~12 dB
+  // louder than your normal voice and pushed it into clipping.)
+  for (let i = 0; i < 1024; i++) { const x = i / 511.5 - 1; curve[i] = Math.tanh(2.2 * x) / Math.tanh(2.2); }
   shaper.curve = curve; shaper.oversample = "2x";
   pitch.output.connect(shaper);
 
@@ -86,10 +89,12 @@ async function makeVoiceChain(ac) {
   const hp = ac.createBiquadFilter(); hp.type = "highpass"; hp.frequency.value = 70;
   mix.connect(shelf).connect(hp);
   const echo = ac.createDelay(0.5); echo.delayTime.value = 0.085;
-  const fb = ac.createGain(); fb.gain.value = 0.25;
-  const echoOut = ac.createGain(); echoOut.gain.value = 0.35;
+  const fb = ac.createGain(); fb.gain.value = 0.18;
+  const echoOut = ac.createGain(); echoOut.gain.value = 0.22;   // a light slap, kept low so words stay clear
   hp.connect(echo); echo.connect(fb).connect(echo); echo.connect(echoOut);
-  hp.connect(wet); echoOut.connect(wet);
+  // trim brings the effect voice back to about the same loudness as your normal voice
+  const trim = ac.createGain(); trim.gain.value = WET_TRIM;
+  hp.connect(trim); echoOut.connect(trim); trim.connect(wet);
   wet.connect(output);
 
   let level = 0, wetMix = 1;
@@ -97,7 +102,7 @@ async function makeVoiceChain(ac) {
   const applyMix = t => {
     const x = clamp(level * wetMix, 0, 1) * Math.PI / 2;
     dry.gain.setTargetAtTime(Math.cos(x), t, 0.04);
-    wet.gain.setTargetAtTime(Math.sin(x) * 1.1, t, 0.04);
+    wet.gain.setTargetAtTime(Math.sin(x), t, 0.04);
   };
 
   return {
@@ -111,8 +116,9 @@ async function makeVoiceChain(ac) {
     },
     setLevel(l) {
       const t = ac.currentTime;
+      // a fresh "electric" buzz frequency each time the effect starts (not every frame, which warbled)
+      if (level <= 0.01 && l > 0.01) ringOsc.frequency.setValueAtTime(40 + Math.random() * 14, t);
       level = l; applyMix(t);
-      if (level > 0.01) ringOsc.frequency.setTargetAtTime(40 + Math.random() * 14, t, 0.1);
     },
   };
 }
@@ -131,7 +137,12 @@ class Output {
   async build() {
     const ac = this.ctx;
     if (this.sinkId) await this.setSink(this.sinkId);
-    this.master = ac.createGain(); this.master.connect(ac.destination);
+    this.master = ac.createGain();
+    // Safety limiter: catches peaks when your voice, thunder and fire all hit at once, so nothing crackles.
+    this.limiter = ac.createDynamicsCompressor();
+    this.limiter.threshold.value = -3; this.limiter.knee.value = 2; this.limiter.ratio.value = 20;
+    this.limiter.attack.value = 0.002; this.limiter.release.value = 0.12;
+    this.master.connect(this.limiter).connect(ac.destination);
     this.sfx = ac.createGain(); this.sfx.connect(this.master);
     this.voice = ac.createGain(); this.voice.gain.value = 0; this.voice.connect(this.master);
     const len = ac.sampleRate * 3;
@@ -257,8 +268,9 @@ class Output {
         o1.frequency.setTargetAtTime(55 + v * 70, t, 0.05);
         o2.frequency.setTargetAtTime(55.7 + v * 71, t, 0.05);
         lp.frequency.setTargetAtTime(200 + v * 2200, t, 0.05);
-        g.gain.setTargetAtTime(0.1 + v * 0.22, t, 0.05);
-        ng.gain.setTargetAtTime(v * 0.12 * (Math.random() < 0.3 ? 2 : 0.3), t, 0.01);
+        // kept well under your voice so you can still talk while charging
+        g.gain.setTargetAtTime(0.02 + v * 0.045, t, 0.05);
+        ng.gain.setTargetAtTime(v * 0.05 * (Math.random() < 0.3 ? 2 : 0.3), t, 0.01);
       };
     } else if (kind === "drone") {
       const o1 = ac.createOscillator(), o2 = ac.createOscillator();
@@ -361,6 +373,7 @@ export const audio = {
     this.call.create(id);
     await this.call.build();
     this.call.chain.setParams(this.params);
+    this.call.chain.setLevel(this.level);
     this.applySettings();
     if (this.mic) this.call.attachMic(this.mic);
     return "on";
@@ -373,7 +386,7 @@ export const audio = {
   },
 
   setVoiceLevel(level) {
-    if (Math.abs(level - this.level) < 0.002 && level !== 0 && level !== 1) return;
+    if (level === this.level || (Math.abs(level - this.level) < 0.002 && level !== 0 && level !== 1)) return;
     this.level = level;
     for (const o of this.outs()) o.chain.setLevel(level);
   },
@@ -437,3 +450,6 @@ export const audio = {
     this.testing = false; this.applySettings();
   },
 };
+
+// For tests: render the real chain offline.
+export { makeVoiceChain as _makeVoiceChain, Output as _Output };
