@@ -87,6 +87,9 @@ section h3 { margin: 0; font: 500 11px/1 var(--f-mono); letter-spacing: .14em; t
 .sys.error .msg { color: var(--warn); }
 @keyframes pulse { 50% { opacity: .3; } }
 
+.shortcuts { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 12px; color: var(--muted); }
+.shortcuts li { display: grid; gap: 2px; }
+.shortcuts b { color: var(--text); font-weight: 600; font-size: 13px; }
 .seq { list-style: none; margin: 0; padding: 0; display: grid; gap: 2px; }
 .seq li { display: grid; grid-template-columns: 22px 1fr auto; gap: 8px; align-items: center; padding: 6px 8px; border-radius: 5px; font-size: 13px; color: var(--muted); }
 .seq li b { font: 500 11px var(--f-mono); color: var(--line); }
@@ -175,6 +178,13 @@ kbd { font: 11px var(--f-mono); border: 1px solid var(--line); border-bottom-wid
       <h3>Effect settings</h3>
       <div id="fxSettings" style="display:grid;gap:10px"></div>
       <div class="btns"><button class="btn ghost" id="fxReset">Reset to defaults</button></div>
+    </section>
+
+    <section>
+      <h3>Gesture shortcuts</h3>
+      <label class="toggle"><input type="checkbox" id="shortcutsOn"> Use gesture shortcuts (work in every mode)</label>
+      <ul class="shortcuts" id="shortcutList"></ul>
+      <p class="note">Test keys: Z zoom · M mirror · C confetti · G glitch · P resets everything.</p>
     </section>
 
     <section>

@@ -22,6 +22,7 @@ export default {
     { key: "fadeMs", label: "Eye fade-out", type: "range", min: 200, max: 4000, step: 100, default: 1200, format: v => `${(v / 1000).toFixed(1)} s` },
     { key: "color", label: "Energy colour", type: "select", options: [["storm", "Storm blue"], ["void", "Void violet"], ["ember", "Ember orange"]], default: "storm" },
   ],
+  idleSteps: ["idle", "armed"],   // gesture shortcuts can switch modes from these steps
   steps: [
     { id: "idle", label: "Raise hands" },
     { id: "armed", label: "Make fists and hold" },

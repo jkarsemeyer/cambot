@@ -15,6 +15,8 @@
 - **Auto-update: electron-updater, reading the public repo `jkarsemeyer/cambot-releases`.** The code repo stays private; only installers, `latest.yml` and blockmaps go public, because an app can't read private releases without shipping a token. The build publishes there using the `RELEASES_TOKEN` secret (fine-grained token, Contents read/write on cambot-releases only). Updates download in the background and install on "Restart to update" or on quit.
 - **Voice wet/dry mix.** An equal-power blend of natural and processed voice, saved per effect (default 60% effect) so the voice stays understandable.
 
+- **Gesture shortcuts sit above the modes** (`shortcuts.js`): point at an open hand or fist to switch mode (only while the mode is at rest), plus layers that work in any mode (finger-frame zoom, mirror, confetti, glitch). Layers post-process the finished picture so effects stay aligned. Every shortcut needs a short hold and must be released before it can fire again.
+
 ## Known limits
 
 - The installer is unsigned, so Windows SmartScreen warns on first run.

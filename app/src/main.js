@@ -9,6 +9,7 @@ import { createHandTracker, createFaceTracker, TRACK_W } from "./trackers.js";
 import { Holds, withTimeout, rand, escapeHtml } from "./util.js";
 import { HAND_BONES, vignette } from "./draw.js";
 import { EFFECTS } from "./effects/index.js";
+import { createShortcuts, SHORTCUTS } from "./shortcuts.js";
 
 const $ = id => document.getElementById(id);
 const out = $("out"), octx = out.getContext("2d");               // the clean picture calls receive
@@ -216,6 +217,7 @@ function useEffect(id) {
 }
 
 /* ---------------------------------------------------------------- frame loop */
+let frozenHands = [];
 let lastFrame = performance.now(), lastVideoTime = -1, hands = [], face = null, faceSeen = -1e9, grabbing = false;
 let fpsAcc = 0, fpsN = 0, lastUI = 0;
 const trackN = { hands: 0, face: 0 };
@@ -233,7 +235,12 @@ function frame(now) {
   feedTrackers();
 
   const f = { t: now, dt, hands, face, W: view.W, H: view.H };
-  try { inst.update(f); } catch (e) { console.error(e); }
+  // While a shortcut gesture is being held, the mode keeps seeing the hands from just before it,
+  // so making the gesture doesn't also set off (or cancel) the mode's own gestures.
+  let busy = false;
+  if (cfg.shortcuts) { try { busy = shortcuts.update(f); } catch (e) { console.error(e); } }
+  if (!busy) frozenHands = hands;
+  try { inst.update(busy ? { ...f, hands: frozenHands } : f); } catch (e) { console.error(e); }
   render(f);
   audio.setVoiceLevel(cfg.voiceForce ? 1 : (inst.voice || 0));
   if (vcam.running) vcam.send(out, now, cfg.mirror);
@@ -288,13 +295,18 @@ function render(f) {
   octx.globalCompositeOperation = "source-over";
   vignette(octx, W, H, g.vignette || 0);
   octx.restore();
+  try { shortcuts.post(octx, f); } catch (e) { console.error(e); }
 
   vctx.clearRect(0, 0, W, H);
   if (!document.body.classList.contains("clean")) {
     try { inst.overlay && inst.overlay(vctx, f); } catch (e) { console.error(e); }
+    if (cfg.shortcuts) shortcuts.overlay(vctx);
     if (cfg.debug) drawDebug(f);
   }
 }
+
+const shapeName = h => h.thumbsUp ? "thumbs up" : h.peace ? "peace" : h.L ? "L" : h.point ? "point"
+  : h.upright ? "open, upright" : h.fist ? "fist" : h.open ? "open" : h.pinch ? "pinch" : "partly closed";
 
 function drawDebug(f) {
   vctx.save();
@@ -305,7 +317,7 @@ function drawDebug(f) {
     vctx.beginPath();
     for (const [a, b] of HAND_BONES) { vctx.moveTo(h.P[a].x, h.P[a].y); vctx.lineTo(h.P[b].x, h.P[b].y); }
     vctx.stroke();
-    vctx.fillText(h.fist ? "FIST" : h.open ? "OPEN" : h.pinch ? "PINCH" : "—", h.P[0].x - 24, h.P[0].y + 28);
+    vctx.fillText(shapeName(h).toUpperCase(), h.P[0].x - 24, h.P[0].y + 28);
   }
   if (f.face) {
     vctx.strokeStyle = "#8fd3ff";
@@ -377,7 +389,7 @@ function updateUI() {
     li.classList.toggle("done", i < idx);
     li.querySelector("em").textContent = i === idx && inst.progress > 0 ? `${Math.round(inst.progress * 100)}%` : "";
   });
-  $("stateChip").textContent = `${effect.name} · ${inst.step}`;
+  $("stateChip").textContent = [`${effect.name} · ${inst.step}`, ...shortcuts.active].join(" · ");
   $("stateChip").classList.toggle("on", idx > 0);
 
   const camS = SYSTEMS.camera.state, handS = SYSTEMS.hands.state;
@@ -392,7 +404,7 @@ function updateUI() {
   for (let i = 0; i < 2; i++) {
     const h = hands[i];
     $("h" + i).textContent = handS !== "ok" ? (handS === "error" ? "tracking unavailable" : "starting…")
-      : h ? `${h.fist ? "fist" : h.open ? "open" : h.pinch ? "pinch" : "partly closed"} · height ${Math.round((1 - h.y01) * 100)}%` : "no hand";
+      : h ? `${shapeName(h)} · height ${Math.round((1 - h.y01) * 100)}%` : "no hand";
   }
   const faceS = SYSTEMS.face.state;
   $("faceV").textContent = faceS === "error" ? "unavailable" : faceS !== "ok" ? "starting…"
@@ -416,6 +428,7 @@ function bindRange(id, key, fmt, after) {
 }
 bindCheck("mirror", "mirror");
 bindCheck("debug", "debug");
+bindCheck("shortcutsOn", "shortcuts", () => { if (!cfg.shortcuts) shortcuts.reset(); });
 bindCheck("gpu", "gpu");
 bindCheck("hearSfx", "hearSfx", () => audio.applySettings());
 bindCheck("hearVoice", "hearVoice", () => { audio.applySettings(); $("fbWarn").hidden = !cfg.hearVoice; });
@@ -484,10 +497,25 @@ window.addEventListener("keydown", e => {
   if (k === "h") toggleClean();
   else if (k === "f") { (document.fullscreenElement ? document.exitFullscreen() : $("stage").requestFullscreen()).catch(() => {}); }
   else if (k === " ") { e.preventDefault(); inst.trigger && inst.trigger(currentFrame()); }
-  else if (k === "p") inst.reset && inst.reset(currentFrame());
+  else if (k === "p") { inst.reset && inst.reset(currentFrame()); shortcuts.reset(); }
+  else if (k === "z") shortcuts.trigger("zoom", currentFrame());
+  else if (k === "m") shortcuts.trigger("mirror", currentFrame());
+  else if (k === "c") shortcuts.trigger("confetti", currentFrame());
+  else if (k === "g") shortcuts.trigger("glitch", currentFrame());
   else if (k === "d") { cfg.debug = !cfg.debug; $("debug").checked = cfg.debug; save(); }
   else if (/^[1-9]$/.test(k) && EFFECTS[+k - 1]) useEffect(EFFECTS[+k - 1].id);
 });
+
+/* ---------------------------------------------------------------- gesture shortcuts */
+const modeIsIdle = () => (effect.idleSteps || [effect.steps[0].id]).includes(inst.step);
+const shortcuts = createShortcuts({
+  play: (name, ...args) => audio.play(name, ...args),
+  emit: (name, data) => bus.emit(name, data),
+  switchTo: id => useEffect(id),
+  currentMode: () => effect.id,
+  modeIsIdle,
+});
+$("shortcutList").innerHTML = SHORTCUTS.map(s => `<li><b>${escapeHtml(s.name)}</b><span>${escapeHtml(s.how)}</span></li>`).join("");
 
 /* ---------------------------------------------------------------- start */
 useEffect(cfg.effect);

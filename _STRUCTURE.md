@@ -8,7 +8,8 @@ cambot/
 │   ├── src/
 │   │   ├── main.js             Start-up, frame loop, effect switching, panel
 │   │   ├── effects/            One file per effect. index.js lists them
-│   │   ├── gestures.js         Tracking points → fist / open / pinch / eyes / mouth
+│   │   ├── gestures.js         Tracking points → fist / open / point / L / peace / thumbs up / eyes / mouth
+│   │   ├── shortcuts.js        Gestures that work in every mode: switch mode, zoom, mirror, confetti, glitch
 │   │   ├── trackers.js         Starts hand and face tracking, each in its own worker
 │   │   ├── tracking-worker.js  Runs one tracker off the main thread
 │   │   ├── audio.js            Sounds, voice effect, the two outputs, voice test

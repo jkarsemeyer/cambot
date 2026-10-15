@@ -25,6 +25,7 @@ export default {
     { key: "holdMs", label: "Hold", type: "range", min: 200, max: 2000, step: 50, default: 600, format: v => `${v} ms` },
     { key: "color", label: "Colour", type: "select", options: [["ice", "Ice"], ["glass", "Glass"]], default: "ice" },
   ],
+  idleSteps: ["idle"],             // optional: steps where a gesture shortcut may switch to another mode (default: the first step)
   steps: [                         // the sequence shown in the panel
     { id: "idle", label: "Touch your fingertips" },
     { id: "frozen", label: "Frozen" },
@@ -60,6 +61,8 @@ export default {
 Each hand has:
 - `palm` (centre point) and `size` (a good unit for scaling effects to the hand)
 - `fist`, `open` and `pinch` (true or false)
+- `point`, `L` (thumb and index out), `peace`, `thumbsUp`, `upright` (open, fingers up), and `tip` (index fingertip)
+- `ext` and `curl`: per finger [index, middle, ring, pinky], extended or curled, plus `thumb` (thumb out)
 - `x01`, `y01`: palm position as a fraction of the frame
 - `P`: all 21 points. 0 is the wrist, and 4, 8, 12, 16 and 20 are the fingertips from thumb to pinky.
 
@@ -86,6 +89,13 @@ Drawing helpers come from `app/src/draw.js`:
 - `Particles`: sparks, embers and smoke
 - `drawEyes`: glowing eyes
 - `vignette`: darkened edges
+
+## Gesture shortcuts
+
+`app/src/shortcuts.js` handles gestures that work in every mode: switching modes and the layered effects
+(zoom, mirror, confetti, glitch). They're applied to the finished picture after your effect draws.
+While a shortcut gesture is being held, your effect keeps seeing the hands from just before it started,
+so the shortcut doesn't also trigger your effect's own gestures. Avoid using those shapes as your effect's triggers.
 
 ## Tips
 

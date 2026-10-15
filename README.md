@@ -25,12 +25,27 @@ To get your voice into calls, install [VB-Cable](https://vb-audio.com/Cable/) on
 | 1 | Storm Caller | Raise both hands, make fists, hold. Lightning strikes, then your eyes glow and your voice drops. Raise open palms to power down. |
 | 2 | Fire Palm | Show an open palm to catch fire. Make a fist to put it out. Both palms burning lights your eyes and voice. |
 
+### Gesture shortcuts (work in every mode)
+
+| Gesture | Does |
+| --- | --- |
+| Point at an open hand | Switch to Storm Caller |
+| Point at a fist | Switch to Fire Palm |
+| Both hands make an L, framing a rectangle | Zoom in on your face. Again to zoom out |
+| Both open hands upright, side by side | Mirror at the middle of your face. Again for the other side, again for off |
+| Thumbs up | Confetti |
+| Peace sign | Glitch burst |
+
+Hold each gesture for a moment. A ring fills up around your hands while you hold. Mode switching only works
+while the current effect is at rest. Turn shortcuts off under **Gesture shortcuts** in the panel.
+
 Other keys:
 - **Space:** test the current effect
 - **P:** reset it
 - **H:** clean view
 - **F:** fullscreen
 - **D:** show tracking points
+- **Z, M, C, G:** zoom, mirror, confetti, glitch (to test without gestures)
 
 ## Testing your voice
 

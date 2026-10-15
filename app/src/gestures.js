@@ -17,6 +17,15 @@ export function toPx(p, view) {
     fist     at least 3 fingers curled
     open     all 4 fingers extended
     pinch    thumb tip touching index tip
+    ext      [index, middle, ring, pinky] each true if that finger is extended
+    curl     [index, middle, ring, pinky] each true if that finger is curled
+    thumb    thumb sticking out from the hand
+    point    index finger out, the others curled (thumb can be either way)
+    L        thumb and index out, the others curled: one corner of a finger frame
+    peace    index and middle out, ring and pinky curled
+    thumbsUp thumb out and pointing up, the four fingers curled
+    upright  open hand with the fingers pointing up (within about 30 degrees)
+    tip      index fingertip
     x01,y01  palm position as a fraction of the frame (0 = left/top)
   Hands are sorted left to right as they appear on screen.
 */
@@ -28,16 +37,27 @@ export function readHands(result, view) {
     const wrist = P[0];
     const palm = [0, 5, 9, 13, 17].reduce((a, i) => ({ x: a.x + P[i].x / 5, y: a.y + P[i].y / 5 }), { x: 0, y: 0 });
     const size = Math.max(1, dist(P[0], P[9]));
-    let curled = 0, extended = 0;
+    const ext = [], curl = [];
     for (const [tip, pip, mcp] of FINGERS) {
       const dT = dist(P[tip], wrist), dP = dist(P[pip], wrist), dM = dist(P[mcp], wrist);
-      if (dT < dP * 1.0 || dT < dM * 1.25) curled++;
-      else if (dT > dP * 1.2 && dT > dM * 1.55) extended++;
+      curl.push(dT < dP * 1.0 || dT < dM * 1.25);
+      ext.push(!curl[curl.length - 1] && dT > dP * 1.2 && dT > dM * 1.55);
     }
-    const fist = curled >= 3;
+    const curled = curl.filter(Boolean).length, extended = ext.filter(Boolean).length;
+    // A pointing finger isn't a fist, even though the other three fingers are curled.
+    const fist = curled >= 3 && !ext[0];
     const open = !fist && extended >= 4;
     const pinch = dist(P[4], P[8]) < size * 0.32;
-    out.push({ P, palm, size, fist, open, pinch, curled, extended, x01: palm.x / view.W, y01: palm.y / view.H });
+    // thumb is "out" when its tip is well away from the index knuckle and further from the wrist than its own joint
+    const thumb = dist(P[4], P[5]) > size * 0.55 && dist(P[4], wrist) > dist(P[3], wrist);
+    const othersCurled = [curl[1], curl[2], curl[3]].filter(Boolean).length >= 2;
+    const point = ext[0] && othersCurled && !ext[1];
+    const L = point && thumb;
+    const peace = ext[0] && ext[1] && curl[2] && curl[3];
+    const thumbsUp = thumb && curled >= 4 && P[4].y < P[2].y - size * 0.45 && !pinch;
+    const up = Math.atan2(P[9].x - wrist.x, wrist.y - P[9].y); // 0 = fingers straight up
+    const upright = open && Math.abs(up) < 0.55;
+    out.push({ P, palm, size, fist, open, pinch, curled, extended, ext, curl, thumb, point, L, peace, thumbsUp, upright, tip: P[8], x01: palm.x / view.W, y01: palm.y / view.H });
   }
   out.sort((a, b) => a.palm.x - b.palm.x);
   return out;

@@ -17,6 +17,7 @@ const DEFAULTS = {
   callDevice: "",
   callSfx: true,
   voiceForce: false,
+  shortcuts: true,
   effects: {},
 };
 
