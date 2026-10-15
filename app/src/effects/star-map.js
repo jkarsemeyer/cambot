@@ -1,5 +1,5 @@
 // Star Map: pinch to place stars, point to link them into constellations. Finished constellations
-// are named after the zodiac. The room dims to a night sky as you work.
+// get made-up names, each subtitled "An Array of Stars". The room dims to a night sky as you work.
 //
 //   Pinch (thumb and index together)  place a star where you pinch. Keep pinching to drag it into place.
 //                                     Pinch an existing star to move it; its lines follow.
@@ -16,10 +16,22 @@ const COLORS = {
   rose:   { glow: [255, 140, 200], core: [255, 234, 246], tint: [45, 15, 70] },
 };
 
-const ZODIAC = [
-  ["♈", "Aries"], ["♉", "Taurus"], ["♊", "Gemini"], ["♋", "Cancer"], ["♌", "Leo"], ["♍", "Virgo"],
-  ["♎", "Libra"], ["♏", "Scorpio"], ["♐", "Sagittarius"], ["♑", "Capricorn"], ["♒", "Aquarius"], ["♓", "Pisces"],
-];
+// Made-up constellation names, built from star-sounding syllables. Every one carries the same subtitle.
+const SUBTITLE = "— An Array of Stars —";
+const NAME_START = ["Ael", "Bry", "Cae", "Dra", "Ely", "Iri", "Kae", "Lyr", "Mor", "Nyx", "Ori", "Pel", "Qui", "Rhy", "Sol", "Tal", "Vae", "Zeph", "Ast", "Cyr", "Hal", "Ser", "Thal", "Vel", "Eos", "Ama", "Neb", "Cor"];
+const NAME_MID = ["a", "e", "i", "o", "ae", "ia", "or", "an", "el", "ar", "yn", "ith", "ol", "en"];
+const NAME_END = ["ris", "dra", "lia", "nox", "thea", "mir", "vos", "lune", "tara", "phine", "rion", "sa", "dis", "nea", "vel", "ion", "aria", "is", "ora", "eth"];
+const pick = a => a[Math.floor(Math.random() * a.length)];
+function makeName(taken) {
+  for (let i = 0; i < 50; i++) {
+    const a = pick(NAME_START), z = pick(NAME_END);
+    if (a.toLowerCase() === z) continue;   // no "Velvel"
+    let n = a + (Math.random() < 0.6 ? pick(NAME_MID) : "") + z;
+    n = n.replace(/([aeiouy])\1+/g, "$1").replace(/([^aeiouy])\1\1+/g, "$1$1");   // tidy doubled letters
+    if (n.length >= 5 && n.length <= 11 && !taken.has(n)) return n;
+  }
+  return "Nova " + (taken.size + 1);
+}
 // C major pentatonic, two octaves: every combination sounds pleasant
 const NOTES = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.5, 1567.98, 1760];
 const MAX_STARS = 40;
@@ -33,7 +45,7 @@ export default {
     { key: "color", label: "Starlight", type: "select", options: [["silver", "Silver"], ["gold", "Gold"], ["rose", "Rose"]], default: "silver" },
     { key: "sky", label: "Night sky", type: "range", min: 0, max: 1, step: 0.05, default: 0.65, format: v => `${Math.round(v * 100)}%` },
     { key: "grab", label: "Star reach", type: "range", min: 0.3, max: 1.5, step: 0.05, default: 0.7, format: v => `${Math.round(v * 100)}%` },
-    { key: "names", label: "Name constellations after the zodiac", type: "toggle", default: true },
+    { key: "names", label: "Name constellations", type: "toggle", default: true },
   ],
   idleSteps: ["idle", "stars", "named"],
   steps: [
@@ -49,7 +61,8 @@ export default {
     const sparks = new Particles(400);
     const colors = () => COLORS[S.color] || COLORS.silver;
 
-    let stars = [], edges = [], groups = [], nextId = 1, nextSign = 0;
+    let stars = [], edges = [], groups = [], nextId = 1;
+    const usedNames = new Set();
     let chain = null;                 // { from: star, links: n } while pointing
     let pointerLost = 0;
     const slots = [{ since: null, drag: null, seen: 0 }, { since: null, drag: null, seen: 0 }];
@@ -102,8 +115,8 @@ export default {
       let g = members.map(s => s.group).find(Boolean);
       const isNew = !g;
       if (isNew) {
-        const [glyph, name] = ZODIAC[nextSign++ % ZODIAC.length];
-        g = { glyph, name, born: t };
+        const name = makeName(usedNames); usedNames.add(name);
+        g = { name, born: t };
         groups.push(g);
       }
       for (const s of members) { s.group = g; s.pulse = 1; }
@@ -118,7 +131,7 @@ export default {
     function clearSky(t) {
       if (!stars.length) return;
       clearing = { born: t, stars, edges, groups };
-      stars = []; edges = []; groups = []; chain = null; nextSign = 0;
+      stars = []; edges = []; groups = []; chain = null;
       slots.forEach(s => { s.drag = null; s.since = null; });
       kit.sfx.play("whoosh", 0.45, 1.1);
       kit.emit("sky_cleared");
@@ -275,24 +288,22 @@ export default {
         }
 
         sparks.draw(ctx, "ember", c);
+      },
 
-        // constellation names, above each group
-        if (S.names) {
-          ctx.globalCompositeOperation = "source-over";
-          ctx.textAlign = "center";
-          for (const g of groups) {
-            const mem = stars.filter(s => s.group === g);
-            if (!mem.length) continue;
-            const cx = mem.reduce((a, s) => a + s.x, 0) / mem.length;
-            const top = Math.min(...mem.map(s => s.y));
-            const a = clamp((t - g.born) / 900);
-            ctx.font = `italic 500 ${Math.round(26 * sc)}px Georgia, "Times New Roman", serif`;
-            ctx.shadowColor = `rgba(${c.glow.join(",")},0.9)`; ctx.shadowBlur = 14 * sc;
-            ctx.fillStyle = `rgba(${c.core.join(",")},${0.92 * a})`;
-            ctx.fillText(`${g.glyph}︎  ${g.name}`, cx, Math.max(36 * sc, top - 34 * sc - (1 - a) * 12 * sc));
-          }
-          ctx.shadowBlur = 0;
+      // Constellation names. Drawn by the engine as text, separately for your screen and for the call,
+      // so they read the right way round in both (calls receive the picture un-mirrored).
+      labels(f) {
+        if (!S.names) return [];
+        const c = colors(), sc = f.W / 1280, out = [];
+        for (const g of groups) {
+          const mem = stars.filter(s => s.group === g);
+          if (!mem.length) continue;
+          const a = clamp((f.t - g.born) / 900);
+          const cx = mem.reduce((acc, s) => acc + s.x, 0) / mem.length;
+          const top = Math.min(...mem.map(s => s.y));
+          out.push({ text: g.name, sub: SUBTITLE, x: cx, y: Math.max(64 * sc, top - 48 * sc - (1 - a) * 12 * sc), size: 30 * sc, alpha: a, color: c.core, glow: c.glow });
         }
+        return out;
       },
 
       // screen-only: show how close you need to be to grab a star while pointing

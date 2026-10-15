@@ -7,13 +7,14 @@ import { vcam } from "./vcam.js";
 import { readHands, readFace } from "./gestures.js";
 import { createHandTracker, createFaceTracker, TRACK_W } from "./trackers.js";
 import { Holds, withTimeout, rand, escapeHtml } from "./util.js";
-import { HAND_BONES, vignette } from "./draw.js";
+import { HAND_BONES, vignette, drawLabels } from "./draw.js";
 import { EFFECTS } from "./effects/index.js";
 import { createShortcuts, SHORTCUTS } from "./shortcuts.js";
 
 const $ = id => document.getElementById(id);
 const out = $("out"), octx = out.getContext("2d");               // the clean picture calls receive
-const overlay = $("overlay"), vctx = overlay.getContext("2d");   // guides and tracking points, screen only
+const overlay = $("overlay"), vctx = overlay.getContext("2d");
+const textLayer = $("text"), tctx = textLayer.getContext("2d");    // effect text (names), screen copy   // guides and tracking points, screen only
 const video = $("cam");
 const view = { W: 1280, H: 720, get mirror() { return cfg.mirror; } };
 const isDesktop = !!(window.cambot && window.cambot.isDesktop);
@@ -103,8 +104,8 @@ async function openCamera(deviceId) {
   video.srcObject = camStream;
   await video.play();
   if (!video.videoWidth) await new Promise(r => video.addEventListener("loadedmetadata", r, { once: true }));
-  view.W = out.width = overlay.width = video.videoWidth || 1280;
-  view.H = out.height = overlay.height = video.videoHeight || 720;
+  view.W = out.width = overlay.width = textLayer.width = video.videoWidth || 1280;
+  view.H = out.height = overlay.height = textLayer.height = video.videoHeight || 720;
 }
 async function startCamera() {
   await withTimeout(openCamera($("camDev").value || cfg.camDevice || undefined), 20000, "Opening the camera");
@@ -243,7 +244,13 @@ function frame(now) {
   try { inst.update(busy ? { ...f, hands: frozenHands } : f); } catch (e) { console.error(e); }
   render(f);
   audio.setVoiceLevel(cfg.voiceForce ? 1 : (inst.voice || 0));
-  if (vcam.running) vcam.send(out, now, cfg.mirror);
+  // Effect text goes on its own layer, so it reads correctly on screen and in the (un-mirrored) call picture.
+  let labels = [];
+  try { labels = (inst.labels && inst.labels(f)) || []; } catch (e) { console.error(e); }
+  labels = labels.map(l => ({ ...l, ...shortcuts.mapPoint(l, f.W, f.H) }));
+  tctx.clearRect(0, 0, f.W, f.H);
+  drawLabels(tctx, labels);
+  if (vcam.running) vcam.send(out, now, cfg.mirror, labels);
   if (now - lastUI > 100) { lastUI = now; updateUI(); }
 }
 // Hand each new camera frame to whichever trackers are free. They run in workers and report back

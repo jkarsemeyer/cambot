@@ -24,7 +24,7 @@ To get your voice into calls, install [VB-Cable](https://vb-audio.com/Cable/) on
 | --- | --- | --- |
 | 1 | Storm Caller | Raise both hands, make fists, hold. Lightning strikes, then your eyes glow and your voice drops. Raise open palms to power down. |
 | 2 | Fire Palm | Show an open palm to catch fire. Make a fist to put it out. Both palms burning lights your eyes and voice. |
-| 3 | Star Map | Pinch to place a star (keep pinching to drag it; pinch a star to move it). Point at a star and sweep to others to link them. Lower your finger to finish: 3 or more linked stars get a zodiac name. Two fists clear the sky. |
+| 3 | Star Map | Pinch to place a star (keep pinching to drag it; pinch a star to move it). Point at a star and sweep to others to link them. Lower your finger to finish: 3 or more linked stars get a made-up name, subtitled "An Array of Stars". Two fists clear the sky. |
 
 ### Gesture shortcuts (work in every mode)
 

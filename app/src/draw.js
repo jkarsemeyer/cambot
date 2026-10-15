@@ -138,5 +138,31 @@ export function vignette(ctx, W, H, a) {
   ctx.fillRect(0, 0, W, H);
 }
 
+// Text labels (e.g. constellation names): [{ text, sub?, x, y, size, alpha, color, glow }].
+// Drawn separately from the picture so they can read the right way round on screen and on calls.
+// map(p) turns a picture point into this canvas; scale resizes the text to match.
+export function drawLabels(ctx, labels, map = p => p, scale = 1) {
+  if (!labels || !labels.length) return;
+  ctx.save();
+  ctx.textAlign = "center"; ctx.textBaseline = "alphabetic";
+  for (const l of labels) {
+    if (!(l.alpha > 0.01)) continue;
+    const p = map(l), size = l.size * scale;
+    const col = l.color || [255, 255, 255], glow = l.glow || col;
+    ctx.globalAlpha = Math.min(1, l.alpha);
+    ctx.shadowColor = `rgba(${glow.join(",")},0.9)`; ctx.shadowBlur = size * 0.5;
+    ctx.fillStyle = `rgb(${col.join(",")})`;
+    ctx.font = `italic 500 ${Math.round(size)}px Georgia, "Times New Roman", serif`;
+    ctx.fillText(l.text, p.x, p.y);
+    if (l.sub) {
+      ctx.shadowBlur = size * 0.3;
+      ctx.globalAlpha = Math.min(1, l.alpha) * 0.8;
+      ctx.font = `500 ${Math.round(size * 0.5)}px Georgia, "Times New Roman", serif`;
+      ctx.fillText(l.sub, p.x, p.y + size * 0.8);
+    }
+  }
+  ctx.restore();
+}
+
 // Bones of the hand skeleton, for the "show tracking points" view.
 export const HAND_BONES = [[0,1],[1,2],[2,3],[3,4],[0,5],[5,6],[6,7],[7,8],[5,9],[9,10],[10,11],[11,12],[9,13],[13,14],[14,15],[15,16],[13,17],[17,18],[18,19],[19,20],[0,17]];

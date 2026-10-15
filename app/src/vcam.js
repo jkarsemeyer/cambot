@@ -1,6 +1,8 @@
 // Sends the finished picture to "CAMBOT Camera", the virtual webcam that call apps can pick.
 // Only available in the desktop app (the Electron preload provides window.cambot.camera).
 
+import { drawLabels } from "./draw.js";
+
 const bridge = window.cambot && window.cambot.camera;
 const W = 1280, H = 720;          // what call apps receive; must be multiples of 4
 const FRAME_MS = 1000 / 30;
@@ -57,7 +59,8 @@ export const vcam = {
 
   // Call once per animation frame with the clean output canvas.
   // unmirror: the screen view is mirrored like a mirror; call apps expect the true image and mirror it themselves.
-  send(source, now, unmirror) {
+  // labels: effect text in picture coordinates, drawn after un-mirroring so it reads the right way round.
+  send(source, now, unmirror, labels) {
     if (!running || inFlight || now - last < FRAME_MS - 2) return;
     last = now;
     // fill 16:9, cropping the source if it's a different shape
@@ -67,6 +70,10 @@ export const vcam = {
     ctx.setTransform(unmirror ? -1 : 1, 0, 0, 1, unmirror ? W : 0, 0);
     ctx.drawImage(source, (W - dw) / 2, (H - dh) / 2, dw, dh);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (labels && labels.length) {
+      const ox = (W - dw) / 2, oy = (H - dh) / 2;
+      drawLabels(ctx, labels, p => ({ x: unmirror ? W - (ox + p.x * scale) : ox + p.x * scale, y: oy + p.y * scale }), scale);
+    }
 
     if (asyncRead) {
       inFlight = true;

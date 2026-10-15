@@ -162,6 +162,15 @@ export function createShortcuts({ play, emit, switchTo, currentMode, modeIsIdle 
       return busy;
     },
 
+    // Where a picture point ends up after the zoom layer, so text can follow the zoomed picture.
+    mapPoint(p, W, H) {
+      if (zoom.amt <= 0.001) return { x: p.x, y: p.y };
+      const s = 1 + (zoom.s - 1) * ease(zoom.amt);
+      const sw = W / s, sh = H / s;
+      const sx = clamp(zoom.cx - sw / 2, 0, W - sw), sy = clamp(zoom.cy - sh / 2, 0, H - sh);
+      return { x: (p.x - sx) * s, y: (p.y - sy) * s };
+    },
+
     // Applied to the finished picture, after the mode has drawn. Everything here is what calls see.
     post(ctx, f) {
       const { t, W, H } = f;

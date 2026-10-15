@@ -167,7 +167,16 @@ class Output {
     if (!this.ready || !stream) return;
     if (this.micSrc) this.micSrc.disconnect();
     this.micSrc = this.ctx.createMediaStreamSource(stream);
-    this.micSrc.connect(this.chain.input);
+    this.micOn = false;
+    this.setMicActive(this.wantMic !== false);
+  }
+
+  // Feed the mic into this output's voice effect only when something will be heard, to save processing.
+  setMicActive(on) {
+    this.wantMic = on;
+    if (!this.micSrc || on === this.micOn) return;
+    if (on) this.micSrc.connect(this.chain.input); else this.micSrc.disconnect();
+    this.micOn = on;
   }
 
   close() {
@@ -356,6 +365,7 @@ export const audio = {
       m.gain(m.master, s.monitorVol);
       m.gain(m.sfx, s.hearSfx ? s.sfxVol : 0);
       m.gain(m.voice, s.hearVoice && !this.testing ? 1 : 0);
+      m.setMicActive(!!s.hearVoice);
     }
     if (c.ready) {
       c.gain(c.master, 1);

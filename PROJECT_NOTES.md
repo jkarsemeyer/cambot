@@ -19,6 +19,9 @@
 
 - **Audio levels:** the effect voice is level-matched to your normal voice (within about 1.5 dB) and each output ends in a safety limiter, so voice plus thunder or fire never clips. Measured offline with a synthetic voice through the real chain. The build checks every app file parses, after a syntax error once silently switched the voice to the backup processor.
 
+- **Text is drawn separately from the picture** (`labels()` in an effect, `drawLabels` in draw.js): once on a screen layer and once into the call frame after it's un-mirrored, so names read correctly for you and for people on the call. Baking text into the picture made it backwards on calls.
+- **Pitch shifter uses waveform-matched splices** (pitch-worklet.js): each jump of the read point searches for where the waveform lines up, so grains join in phase. The old fixed-jump shifter added 10–15% loudness flutter that sounded like the voice cutting out.
+
 ## Known limits
 
 - The installer is unsigned, so Windows SmartScreen warns on first run.
