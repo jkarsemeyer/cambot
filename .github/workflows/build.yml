@@ -29,8 +29,14 @@ jobs:
           New-Item -ItemType Directory -Force "$sc\dist\bin\x64", "$sc\dist\lib\x64", "$env:GITHUB_WORKSPACE\native\build" | Out-Null
           msbuild "$sc\src\softcam\softcam.vcxproj" /m /nologo /v:minimal /p:Configuration=Release /p:Platform=x64 "/p:SolutionDir=$sc\\"
           if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
-          Copy-Item "$sc\x64\Release\softcam.dll" "$env:GITHUB_WORKSPACE\native\build\cambot_camera.dll"
-          Get-Item "$env:GITHUB_WORKSPACE\native\build\cambot_camera.dll" | Format-List Name, Length
+          $dll = "$env:GITHUB_WORKSPACE\native\build\cambot_camera.dll"
+          Copy-Item "$sc\x64\Release\softcam.dll" $dll
+          # Call apps load this DLL into themselves, so it must not need the Visual C++ runtime installed.
+          $vs = & "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe" -latest -property installationPath
+          $dumpbin = Get-ChildItem "$vs\VC\Tools\MSVC\*\bin\Hostx64\x64\dumpbin.exe" | Select-Object -First 1
+          $deps = & $dumpbin.FullName /nologo /dependents $dll
+          $deps
+          if ($deps -match 'VCRUNTIME|MSVCP|api-ms-win-crt') { Write-Error "cambot_camera.dll still depends on the Visual C++ runtime"; exit 1 }
 
       - uses: actions/setup-node@v4
         with:
