@@ -92,10 +92,10 @@ async function makeVoiceChain(ac) {
   hp.connect(wet); echoOut.connect(wet);
   wet.connect(output);
 
-  let level = 0, mix = 1;
+  let level = 0, wetMix = 1;
   // Equal-power crossfade, so the overall loudness stays even across the mix.
   const applyMix = t => {
-    const x = clamp(level * mix, 0, 1) * Math.PI / 2;
+    const x = clamp(level * wetMix, 0, 1) * Math.PI / 2;
     dry.gain.setTargetAtTime(Math.cos(x), t, 0.04);
     wet.gain.setTargetAtTime(Math.sin(x) * 1.1, t, 0.04);
   };
@@ -104,7 +104,7 @@ async function makeVoiceChain(ac) {
     input, output, kind: pitch.kind,
     setParams({ pitch: ratio = 1, electric = 0, mix: m = 1 }) {
       const t = ac.currentTime;
-      mix = clamp(m, 0, 1); applyMix(t);
+      wetMix = clamp(m, 0, 1); applyMix(t);
       pitch.setRatio(clamp(ratio, 0.4, 1.6));
       ringAmt.gain.setTargetAtTime(electric * 0.9, t, 0.05);
       direct.gain.setTargetAtTime(1 - electric * 0.55, t, 0.05);
