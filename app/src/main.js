@@ -389,7 +389,7 @@ function updateUI() {
     li.classList.toggle("done", i < idx);
     li.querySelector("em").textContent = i === idx && inst.progress > 0 ? `${Math.round(inst.progress * 100)}%` : "";
   });
-  $("stateChip").textContent = [`${effect.name} · ${inst.step}`, ...shortcuts.active].join(" · ");
+  $("stateChip").textContent = [`${effect.name} · ${inst.step}`, ...shortcuts.active, ...(cfg.voiceForce ? ["Voice effect forced on"] : [])].join(" · ");
   $("stateChip").classList.toggle("on", idx > 0);
 
   const camS = SYSTEMS.camera.state, handS = SYSTEMS.hands.state;

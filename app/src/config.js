@@ -31,6 +31,8 @@ function load() {
 }
 
 export const cfg = load();
+// The voice test toggle never carries over: otherwise a forgotten tick keeps the effect voice on in every call.
+cfg.voiceForce = false;
 
 export function save() {
   try { localStorage.setItem(KEY, JSON.stringify(cfg)); } catch {}
