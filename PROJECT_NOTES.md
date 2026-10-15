@@ -10,6 +10,8 @@
 - **Tracking runs on the processor by default.** The graphics-card mode hung on one test machine. It's an opt-in setting.
 - **Everything is bundled** (tracking engine, models). CAMBOT never downloads anything at runtime.
 - **Builds:** GitHub Actions on Windows (`.github/workflows/build.yml`). Every push to `main` publishes a new installer as release `v0.2.<build number>`.
+- **Auto-update: electron-updater, reading the public repo `jkarsemeyer/cambot-releases`.** The code repo stays private; only installers, `latest.yml` and blockmaps go public, because an app can't read private releases without shipping a token. The build publishes there using the `RELEASES_TOKEN` secret (fine-grained token, Contents read/write on cambot-releases only). Updates download in the background and install on "Restart to update" or on quit.
+- **Voice wet/dry mix.** An equal-power blend of natural and processed voice, saved per effect (default 60% effect) so the voice stays understandable.
 
 ## Known limits
 

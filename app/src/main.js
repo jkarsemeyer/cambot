@@ -309,6 +309,7 @@ function renderEffectPanel() {
 
   $("pitch").value = S.voice.pitch;
   $("electric").value = S.voice.electric;
+  $("mix").value = S.voice.mix;
   showVoiceValues();
 }
 
@@ -333,8 +334,10 @@ function showVoiceValues() {
   const S = effectCfg(effect);
   $("pitchV").textContent = `${(12 * Math.log2(S.voice.pitch)).toFixed(1)} st`;
   $("electricV").textContent = `${Math.round(S.voice.electric * 100)}%`;
+  const m = Math.round(S.voice.mix * 100);
+  $("mixV").textContent = m >= 99 ? "All effect" : m <= 1 ? "All natural" : `${m}% effect`;
 }
-for (const key of ["pitch", "electric"]) {
+for (const key of ["pitch", "electric", "mix"]) {
   $(key).addEventListener("input", e => {
     const S = effectCfg(effect);
     S.voice[key] = parseFloat(e.target.value); save();
@@ -488,6 +491,21 @@ async function autoPickCable() {
     bus.emit("call_output", "VB-Cable found and selected");
     fillDevices();
   } catch (e) { console.warn(e); }
+}
+
+/* updates (desktop app): show a bar when a new version has downloaded */
+if (isDesktop && window.cambot.updates) {
+  window.cambot.updates.onState(({ state, detail }) => {
+    if (state === "ready") {
+      $("updateMsg").textContent = `CAMBOT ${detail} is ready.`;
+      $("updateBar").hidden = false;
+    }
+    if (state === "ready" || state === "error") bus.emit(`update_${state}`, detail);
+  });
+  $("updateBtn").addEventListener("click", () => {
+    $("updateBtn").disabled = true; $("updateMsg").textContent = "Restarting…";
+    window.cambot.updates.install();
+  });
 }
 
 if (isDesktop && window.cambot.autoStart) $("startBtn").click();

@@ -56,7 +56,9 @@ function makeNativePitch(ac) {
 /* ---------------------------------------------------------------- voice effect chain
    mic -> dry ------------------------------------------------------------> out
        -> pitch -> drive -> (direct + ring modulator "electric") -> EQ -> slap echo -> wet -> out
-   setLevel(0) is your normal voice, setLevel(1) is fully transformed. */
+   setLevel(0) is your normal voice, setLevel(1) is fully transformed.
+   The "mix" param (0..1) is the wet/dry balance when fully transformed: 1 is all effect,
+   0.5 blends equal parts effect and your natural voice, which keeps words clearer. */
 async function makeVoiceChain(ac) {
   let pitch;
   try { pitch = await makeWorkletPitch(ac); }
@@ -90,18 +92,26 @@ async function makeVoiceChain(ac) {
   hp.connect(wet); echoOut.connect(wet);
   wet.connect(output);
 
+  let level = 0, mix = 1;
+  // Equal-power crossfade, so the overall loudness stays even across the mix.
+  const applyMix = t => {
+    const x = clamp(level * mix, 0, 1) * Math.PI / 2;
+    dry.gain.setTargetAtTime(Math.cos(x), t, 0.04);
+    wet.gain.setTargetAtTime(Math.sin(x) * 1.1, t, 0.04);
+  };
+
   return {
     input, output, kind: pitch.kind,
-    setParams({ pitch: ratio = 1, electric = 0 }) {
+    setParams({ pitch: ratio = 1, electric = 0, mix: m = 1 }) {
       const t = ac.currentTime;
+      mix = clamp(m, 0, 1); applyMix(t);
       pitch.setRatio(clamp(ratio, 0.4, 1.6));
       ringAmt.gain.setTargetAtTime(electric * 0.9, t, 0.05);
       direct.gain.setTargetAtTime(1 - electric * 0.55, t, 0.05);
     },
-    setLevel(level) {
+    setLevel(l) {
       const t = ac.currentTime;
-      dry.gain.setTargetAtTime(1 - level * 0.92, t, 0.04);
-      wet.gain.setTargetAtTime(level * 1.1, t, 0.04);
+      level = l; applyMix(t);
       if (level > 0.01) ringOsc.frequency.setTargetAtTime(40 + Math.random() * 14, t, 0.1);
     },
   };

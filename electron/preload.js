@@ -29,6 +29,11 @@ contextBridge.exposeInMainWorld("cambot", {
   isDesktop: true,
   autoStart: true,
   version: info.version,
+  updates: {
+    onState: fn => ipcRenderer.on("update:state", (_e, s) => fn(s)),
+    check: () => ipcRenderer.invoke("update:check"),
+    install: () => ipcRenderer.invoke("update:install"),
+  },
   camera: {
     status: () => ipcRenderer.invoke("camera:status"),
     install: () => ipcRenderer.invoke("camera:install"),

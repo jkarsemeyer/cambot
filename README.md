@@ -4,7 +4,7 @@ Gesture-triggered webcam effects for video calls. CAMBOT appears in Zoom, Teams 
 
 ## Install
 
-1. Open the repo's **Releases** page and download the newest `CAMBOT-Setup-x.y.z.exe`.
+1. Download the newest `CAMBOT-Setup-x.y.z.exe` from [cambot-releases](https://github.com/jkarsemeyer/cambot-releases/releases/latest).
 2. Run it.
    - Windows may say "Windows protected your PC", because the installer isn't code-signed. Click **More info**, then **Run anyway**.
    - Approve the administrator prompt. It installs CAMBOT Camera.
@@ -37,7 +37,14 @@ Other keys:
 In the panel under **Voice**:
 - **Record 5 seconds**, then compare **Play original** with **Play with effect**.
 - Under **Hear it on this computer**, tick **My voice, live** to hear yourself in real time. Use headphones for this.
-- **Keep the voice effect on** holds the effect on while you adjust Pitch and Electric.
+- **Effect mix** blends the effect with your natural voice. Lower it if words are hard to make out. It's saved per effect.
+- **Keep the voice effect on** holds the effect on while you adjust Pitch, Electric and Effect mix.
+
+## Updates
+
+CAMBOT checks for a new version when it starts and every 2 hours, and downloads it in the background.
+When it's ready, a bar at the top of the panel offers **Restart to update** (approve the Windows prompt).
+If you don't restart, it installs the next time you close CAMBOT.
 
 ## Making effects
 

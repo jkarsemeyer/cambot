@@ -13,6 +13,7 @@
     "dist": "electron-builder --win --x64 --publish never"
   },
   "dependencies": {
+    "electron-updater": "6.8.9",
     "koffi": "2.16.3"
   },
   "devDependencies": {
@@ -66,6 +67,14 @@
       "artifactName": "CAMBOT-Setup-${version}.${ext}",
       "shortcutName": "CAMBOT"
     },
-    "npmRebuild": false
+    "npmRebuild": false,
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "jkarsemeyer",
+        "repo": "cambot-releases",
+        "releaseType": "release"
+      }
+    ]
   }
 }

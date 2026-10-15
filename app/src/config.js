@@ -39,7 +39,7 @@ export function save() {
 export function effectCfg(effect) {
   const saved = (cfg.effects[effect.id] ||= {});
   for (const s of effect.settings || []) if (!(s.key in saved)) saved[s.key] = s.default;
-  saved.voice = { pitch: 1, electric: 0, ...(effect.voice || {}), ...(saved.voice || {}) };
+  saved.voice = { pitch: 1, electric: 0, mix: 0.6, ...(effect.voice || {}), ...(saved.voice || {}) };
   return saved;
 }
 

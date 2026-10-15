@@ -66,3 +66,17 @@ jobs:
           $exe = Get-ChildItem dist\CAMBOT-Setup-*.exe | Select-Object -First 1
           $notes = "Automatic build of $($env:GITHUB_SHA.Substring(0,7)). Download $($exe.Name), run it, and approve the Windows prompt."
           gh release create "v$env:VERSION" "$($exe.FullName)" --title "CAMBOT $env:VERSION" --notes "$notes" --latest
+
+      # Auto-update: the app checks the public jkarsemeyer/cambot-releases repo for latest.yml.
+      # Needs a repo secret RELEASES_TOKEN (fine-grained token, Contents: read and write on cambot-releases).
+      - name: Publish update to cambot-releases
+        if: github.ref == 'refs/heads/main'
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          if (-not $env:GH_TOKEN) { Write-Warning "RELEASES_TOKEN secret not set, so installed copies won't auto-update to this build."; exit 0 }
+          $exe = Get-ChildItem dist\CAMBOT-Setup-*.exe | Select-Object -First 1
+          $files = @($exe.FullName, "$($exe.FullName).blockmap", "dist\latest.yml")
+          foreach ($f in $files) { if (-not (Test-Path $f)) { Write-Error "Missing $f"; exit 1 } }
+          gh release create "v$env:VERSION" $files --repo jkarsemeyer/cambot-releases --title "CAMBOT $env:VERSION" --notes "Build of $($env:GITHUB_SHA.Substring(0,7))." --latest

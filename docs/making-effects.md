@@ -20,7 +20,7 @@ export default {
   id: "ice-touch",                 // unique, lowercase, used to save settings
   name: "Ice Touch",               // shown in the picker
   blurb: "One sentence for the panel.",
-  voice: { pitch: 1.1, electric: 0.2 },   // the voice when fully transformed (pitch 1 = unchanged)
+  voice: { pitch: 1.1, electric: 0.2, mix: 0.6 },   // the voice when fully transformed (pitch 1 = unchanged, mix 1 = all effect)
   settings: [                      // become sliders and menus in Effect settings, saved automatically
     { key: "holdMs", label: "Hold", type: "range", min: 200, max: 2000, step: 50, default: 600, format: v => `${v} ms` },
     { key: "color", label: "Colour", type: "select", options: [["ice", "Ice"], ["glass", "Glass"]], default: "ice" },

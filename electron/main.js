@@ -2,6 +2,7 @@
 // Serves the app folder at cambot://app/, grants camera/mic access, and manages the CAMBOT Camera driver.
 
 const { app, BrowserWindow, protocol, session, ipcMain, shell } = require("electron");
+const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
 const { execFile } = require("child_process");
@@ -67,11 +68,33 @@ if (!app.requestSingleInstanceLock()) {
     });
     win.loadURL("cambot://app/index.html");
     win.webContents.setWindowOpenHandler(({ url }) => { if (/^https?:/.test(url)) shell.openExternal(url); return { action: "deny" }; });
+    if (app.isPackaged) startUpdates(() => win);
     win.webContents.on("will-navigate", (e, url) => { if (!url.startsWith("cambot://")) { e.preventDefault(); if (/^https?:/.test(url)) shell.openExternal(url); } });
   });
 
   app.on("window-all-closed", () => app.quit());
 }
+
+/* ---------------------------------------------------------------- updates
+   Checks the public cambot-releases repo at start-up and every 2 hours. A new version
+   downloads quietly in the background; the panel then offers "Restart to update".
+   If you don't restart, it installs the next time CAMBOT closes. */
+function startUpdates(getWin) {
+  const tell = (state, detail) => { const w = getWin(); if (w && !w.isDestroyed()) w.webContents.send("update:state", { state, detail }); };
+  autoUpdater.autoDownload = true;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.on("checking-for-update", () => tell("checking"));
+  autoUpdater.on("update-available", i => tell("downloading", i.version));
+  autoUpdater.on("update-not-available", () => tell("current", app.getVersion()));
+  autoUpdater.on("download-progress", p => tell("downloading", `${Math.round(p.percent)}%`));
+  autoUpdater.on("update-downloaded", i => tell("ready", i.version));
+  autoUpdater.on("error", e => tell("error", e ? (e.message || String(e)).split("\n")[0] : "unknown"));
+  const check = () => autoUpdater.checkForUpdates().catch(() => {});
+  setTimeout(check, 5000);
+  setInterval(check, 2 * 60 * 60 * 1000);
+  ipcMain.handle("update:check", check);
+}
+ipcMain.handle("update:install", () => autoUpdater.quitAndInstall(false, true));
 
 /* ---------------------------------------------------------------- IPC */
 ipcMain.on("cambot:info", e => {
