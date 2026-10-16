@@ -4,7 +4,7 @@
 //   Hold still at the end  of a stroke to straighten a line or round off a circle.
 //   Pinch a swatch         in the palette at the top of your screen to change colour (only you see it).
 //   Pinch the bin          to clear, or hold two fists.
-//   Open palm, moving      wipes ink away like an eraser.
+//   Hold a fist            and move it over ink to erase (open palms were too easy to set off while talking).
 //
 // By default the ink goes to calls without the mirror flip, so writing reads correctly for everyone.
 
@@ -42,7 +42,7 @@ const mixWhite = (c, k) => c.map(v => Math.round(v + (255 - v) * k));
 export default {
   id: "air-draw",
   name: "Air Draw",
-  blurb: "Pinch to draw in the air. Hold still to snap a shape. Open palm wipes, two fists clear.",
+  blurb: "Pinch to draw in the air. Hold still to snap a shape. A held fist erases, two fists clear.",
   voice: { pitch: 1, electric: 0, mix: 0 },
   settings: [
     { key: "style", label: "Ink", type: "select", options: [["neon", "Neon"], ["marker", "Marker"]], default: "neon" },
@@ -50,13 +50,13 @@ export default {
     { key: "fade", label: "Ink fades after", type: "select", options: [[0, "Never"], [5, "5 seconds"], [15, "15 seconds"], [60, "1 minute"]], default: 0 },
     { key: "callView", label: "On calls", type: "select", options: [["readable", "Writing reads correctly"], ["follow", "Lined up with you (writing is backwards)"]], default: "readable" },
     { key: "snap", label: "Hold still to snap lines and circles", type: "toggle", default: true },
-    { key: "wipe", label: "Wipe with an open palm", type: "toggle", default: true },
+    { key: "wipe", label: "Erase with a held fist", type: "toggle", default: true },
   ],
   idleSteps: ["idle", "inked"],
   steps: [
     { id: "idle", label: "Pinch thumb and finger to draw" },
     { id: "drawing", label: "Drawing (release to lift the pen)" },
-    { id: "inked", label: "Hold still to snap · palm wipes · two fists clear" },
+    { id: "inked", label: "Hold still to snap · held fist erases · two fists clear" },
   ],
 
   create(kit) {
@@ -129,12 +129,12 @@ export default {
       kit.emit("ink_cleared");
     }
 
-    // Erase every point under the palm, splitting strokes where the gaps fall.
+    // Erase every point under the fist, splitting strokes where the gaps fall.
     function wipe(at, R) {
       let changed = false;
       const out = [];
       for (const st of strokes) {
-        if (st.pts.length === 2) {           // snapped line: erase it whole if the palm crosses it
+        if (st.pts.length === 2) {           // snapped line: erase it whole if the fist crosses it
           const [a, b] = st.pts, L = dist(a, b) || 1;
           const tt = clamp(((at.x - a.x) * (b.x - a.x) + (at.y - a.y) * (b.y - a.y)) / (L * L));
           if (dist(at, { x: a.x + (b.x - a.x) * tt, y: a.y + (b.y - a.y) * tt }) < R) { changed = true; continue; }
@@ -223,7 +223,7 @@ export default {
       get coach() {
         if (cur) return snapped ? "Snapped. Release to lift the pen" : "Drawing. Release your pinch to lift the pen";
         if (!strokes.length) return "Pinch your thumb and finger together and move to draw";
-        return "Pinch a colour at the top · open palm wipes · two fists clear";
+        return "Pinch a colour at the top · held fist erases · two fists clear";
       },
       get voice() { return 0; },
       get inkCount() { return strokes.length; },
@@ -270,15 +270,15 @@ export default {
         if (!nowPinched && pinched) endStroke();
         pinched = nowPinched;
 
-        // open palm wipes
+        // a fist, held for a moment, erases whatever it moves over
         wiping = null;
         if (S.wipe && strokes.length) {
-          const palm = hands.find((x, i) => x.open && i !== penHand);
-          if (palm && holds.held("palm", true, 200, t)) {
-            const R = palm.size * 0.85;
-            wiping = { x: palm.palm.x, y: palm.palm.y, R };
-            if (wipe(palm.palm, R) && Math.random() < 0.3) kit.sfx.play("hiss", 0.05, 0.12);
-          } else if (!palm) holds.clear("palm");
+          const fist = hands.find((x, i) => x.fist && i !== penHand);
+          if (fist && holds.held("fist", true, 350, t)) {
+            const R = fist.size * 0.75;
+            wiping = { x: fist.palm.x, y: fist.palm.y, R };
+            if (wipe(fist.palm, R) && Math.random() < 0.3) kit.sfx.play("hiss", 0.05, 0.12);
+          } else if (!fist) holds.clear("fist");
         }
 
         // two fists clear
