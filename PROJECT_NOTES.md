@@ -24,6 +24,8 @@
 
 - **Mac build** (`mac` job in build.yml, macos-14 runner): arm64 and x64 .dmg files added to each release. Ad-hoc signed (build/afterPack.js) so Apple Silicon will run it; not Developer ID signed, so first launch needs Open Anyway, there's no self-update (it offers a download link instead), and there's no virtual camera: a macOS Camera Extension needs a paid Apple Developer account to sign. Voice works through BlackHole 2ch.
 
+- **Person cut-out** (`cutout.js`, `segment` worker with selfie_segmenter_landscape at 320 wide): starts the first time an effect returns `backdropAmount > 0`, and is only fed frames while one does. Star Map uses it to fade the room into a night sky, a step per constellation. If it fails, effects fall back to dimming the whole picture.
+
 ## Known limits
 
 - The installer is unsigned, so Windows SmartScreen warns on first run.

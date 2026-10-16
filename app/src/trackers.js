@@ -7,7 +7,9 @@ import { withTimeout } from "./util.js";
 
 const here = path => new URL(path, document.baseURI).href;
 const VISION_WASM = here("vendor/tasks-vision/wasm");
-const MODELS = { hands: here("models/hand_landmarker.task"), face: here("models/face_landmarker.task") };
+const MODELS = { hands: here("models/hand_landmarker.task"), face: here("models/face_landmarker.task"), segment: here("models/selfie_segmenter_landscape.tflite") };
+// Frame width each tracker gets. The person cut-out model works at 256×144, so it gets a small copy.
+const INPUT_W = { hands: 640, face: 640, segment: 320 };
 
 // Tracking input size. The models work at about 200 px internally, so 640×360 loses no accuracy
 // but makes each frame much cheaper to hand over than the full camera picture.
@@ -18,7 +20,7 @@ function startWorker(kind, preferGpu, onStage) {
     const worker = new Worker(new URL("./tracking-worker.js", import.meta.url), { type: "module", name: `${kind} tracking` });
     let busy = false, onResult = null;
     const tracker = {
-      kind,
+      kind, inputW: INPUT_W[kind],
       get busy() { return busy; },
       // Takes ownership of the bitmap. Returns false (and closes it) if a frame is already in flight.
       send(bitmap, ts) {
@@ -96,3 +98,5 @@ async function start(kind, preferGpu, onStage) {
 
 export const createHandTracker = (preferGpu, onStage) => start("hands", preferGpu, onStage);
 export const createFaceTracker = (preferGpu, onStage) => start("face", preferGpu, onStage);
+// Person cut-out for presenting. Worker only: the in-page backup would be too slow to be worth it.
+export const createSegmenter = (preferGpu, onStage) => withTimeout(startWorker("segment", preferGpu, onStage), 60000, "Starting the person cut-out");

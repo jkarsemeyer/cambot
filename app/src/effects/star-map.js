@@ -1,5 +1,6 @@
 // Star Map: pinch to place stars, point to link them into constellations. Finished constellations
-// get made-up names, each subtitled "An Array of Stars". The room dims to a night sky as you work.
+// get made-up names, each subtitled "An Array of Stars". With every constellation you name, the room
+// behind you fades a little further into a night sky (you stay in front of it).
 //
 //   Pinch (thumb and index together)  place a star where you pinch. Keep pinching to drag it into place.
 //                                     Pinch an existing star to move it; its lines follow.
@@ -9,6 +10,54 @@
 
 import { clamp, rand, dist, approach } from "../util.js";
 import { glowDot, Particles } from "../draw.js";
+
+// The night sky behind you, per starlight colour: top of sky, middle, horizon, Milky Way tint.
+const SKIES = {
+  silver: { top: [3, 5, 14], mid: [7, 12, 32], low: [16, 24, 58], band: [150, 170, 230] },
+  gold:   { top: [5, 4, 14], mid: [14, 10, 34], low: [44, 26, 52], band: [235, 200, 170] },
+  rose:   { top: [6, 3, 14], mid: [18, 8, 36], low: [46, 16, 56], band: [230, 170, 220] },
+};
+
+// Paints the still parts of the sky once (gradient, Milky Way, a few thousand faint stars).
+function paintSkyBase(W, H, sky) {
+  const c = document.createElement("canvas"); c.width = W; c.height = H;
+  const x = c.getContext("2d"), sc = W / 1280;
+  const g = x.createLinearGradient(0, 0, 0, H);
+  g.addColorStop(0, `rgb(${sky.top})`); g.addColorStop(0.55, `rgb(${sky.mid})`); g.addColorStop(1, `rgb(${sky.low})`);
+  x.fillStyle = g; x.fillRect(0, 0, W, H);
+  // Milky Way: a soft diagonal band of glow and dust
+  const bx0 = -0.1 * W, by0 = 0.95 * H, bx1 = 1.1 * W, by1 = 0.05 * H;
+  x.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 260; i++) {
+    const k = Math.random(), off = (Math.random() + Math.random() + Math.random() - 1.5) * 0.11 * H;
+    const nx = -(by1 - by0), ny = bx1 - bx0, nl = Math.hypot(nx, ny);
+    const px = bx0 + (bx1 - bx0) * k + (nx / nl) * off, py = by0 + (by1 - by0) * k + (ny / nl) * off;
+    const r = (30 + Math.random() * 110) * sc, a = 0.018 + Math.random() * 0.03;
+    const rg = x.createRadialGradient(px, py, 0, px, py, r);
+    rg.addColorStop(0, `rgba(${sky.band},${a})`); rg.addColorStop(1, `rgba(${sky.band},0)`);
+    x.fillStyle = rg; x.fillRect(px - r, py - r, r * 2, r * 2);
+  }
+  // dark dust lane down the middle of the band
+  x.globalCompositeOperation = "source-over";
+  for (let i = 0; i < 70; i++) {
+    const k = Math.random(), off = (Math.random() - 0.5) * 0.04 * H;
+    const px = bx0 + (bx1 - bx0) * k, py = by0 + (by1 - by0) * k + off, r = (20 + Math.random() * 50) * sc;
+    const rg = x.createRadialGradient(px, py, 0, px, py, r);
+    rg.addColorStop(0, `rgba(${sky.top},0.22)`); rg.addColorStop(1, `rgba(${sky.top},0)`);
+    x.fillStyle = rg; x.fillRect(px - r, py - r, r * 2, r * 2);
+  }
+  // faint stars, crowded towards the band
+  x.globalCompositeOperation = "lighter";
+  for (let i = 0; i < 2600; i++) {
+    let px = Math.random() * W, py = Math.random() * H;
+    if (Math.random() < 0.55) { const k = Math.random(); px = bx0 + (bx1 - bx0) * k + (Math.random() - 0.5) * 0.25 * H; py = by0 + (by1 - by0) * k + (Math.random() - 0.5) * 0.25 * H; }
+    const m = Math.pow(Math.random(), 3), sz = (0.5 + m * 1.6) * sc;
+    const tint = Math.random() < 0.2 ? "255,214,180" : Math.random() < 0.3 ? "190,210,255" : "235,240,255";
+    x.fillStyle = `rgba(${tint},${0.25 + m * 0.7})`;
+    x.fillRect(px, py, sz, sz);
+  }
+  return c;
+}
 
 const COLORS = {
   silver: { glow: [150, 185, 255], core: [238, 244, 255], tint: [12, 22, 80] },
@@ -43,7 +92,8 @@ export default {
   voice: { pitch: 1.12, electric: 0, mix: 0.45 },
   settings: [
     { key: "color", label: "Starlight", type: "select", options: [["silver", "Silver"], ["gold", "Gold"], ["rose", "Rose"]], default: "silver" },
-    { key: "sky", label: "Night sky", type: "range", min: 0, max: 1, step: 0.05, default: 0.65, format: v => `${Math.round(v * 100)}%` },
+    { key: "sky", label: "Night sky", type: "range", min: 0, max: 1, step: 0.05, default: 1, format: v => `${Math.round(v * 100)}%` },
+    { key: "nightAfter", label: "Constellations to full night", type: "range", min: 1, max: 8, step: 1, default: 4, format: v => `${v}` },
     { key: "grab", label: "Star reach", type: "range", min: 0.3, max: 1.5, step: 0.05, default: 0.7, format: v => `${Math.round(v * 100)}%` },
     { key: "names", label: "Name constellations", type: "toggle", default: true },
   ],
@@ -67,8 +117,15 @@ export default {
     let pointerLost = 0;
     const slots = [{ since: null, drag: null, seen: 0 }, { since: null, drag: null, seen: 0 }];
     let sky = 0, voice = 0, celebrateUntil = 0, clearing = null, lastTip = null, noteIdx = 0;
-    // faint background stars so the sky isn't empty
+    // brighter stars that twinkle (the faint ones are painted once into the sky)
     const field = Array.from({ length: 150 }, () => ({ x: Math.random(), y: Math.random() * 0.85, s: rand(0.4, 1.4), p: rand(0, 6.28), f: rand(0.6, 2) }));
+    let skyBase = null, skyKey = "", meteor = null, nextMeteor = 0;
+    // How far into night: a little once you start placing stars, then a step deeper per constellation.
+    const skyTarget = () => {
+      if (!stars.length) return 0;
+      return S.sky * Math.min(1, 0.12 + 0.88 * groups.length / Math.max(1, S.nightAfter));
+    };
+    const cut = () => kit.cutout && kit.cutout.ready;
 
     const grabR = W => 70 * S.grab * (W / 1280);
     const nearest = (p, R, except) => {
@@ -204,7 +261,8 @@ export default {
         if (holds.held("clear", fists && stars.length > 0, 900, t)) { holds.clear("clear"); clearSky(t); }
 
         // levels
-        sky = approach(sky, S.sky * (stars.length || clearing ? 1 : 0.45), 0.8, 0.5, dt);
+        // fades in slowly (a few seconds per constellation), back out a bit faster when cleared
+        sky = approach(sky, skyTarget(), 0.12, 0.35, dt);
         voice = approach(voice, t < celebrateUntil ? 1 : 0, 2, 0.8, dt);
         for (const s of stars) s.pulse = Math.max(0, s.pulse - dt * 1.2);
         if (clearing && t - clearing.born > 1400) clearing = null;
@@ -213,7 +271,48 @@ export default {
 
       grade() {
         const c = colors();
-        return { darken: sky * 0.55, desaturate: sky * 0.4, contrast: sky * 0.06, tint: c.tint, tintAmount: sky * 0.45, vignette: sky * 0.75, shake: 0 };
+        // With the cut-out, this only lights you for night time; the room itself is replaced by the sky.
+        // Without it, the whole picture just dims.
+        return cut()
+          ? { darken: sky * 0.22, desaturate: sky * 0.2, contrast: sky * 0.05, tint: c.tint, tintAmount: sky * 0.3, vignette: sky * 0.35, shake: 0 }
+          : { darken: sky * 0.55, desaturate: sky * 0.4, contrast: sky * 0.06, tint: c.tint, tintAmount: sky * 0.45, vignette: sky * 0.75, shake: 0 };
+      },
+
+      // The engine fades this in behind you (needs the person cut-out).
+      get backdropAmount() { return kit.cutout && kit.cutout.failed ? 0 : sky; },
+      backdrop(ctx, f) {
+        const { t, W, H } = f, sc = W / 1280, c = colors();
+        const key = `${W}x${H}:${S.color}`;
+        if (key !== skyKey) { skyBase = paintSkyBase(W, H, SKIES[S.color] || SKIES.silver); skyKey = key; }
+        ctx.drawImage(skyBase, 0, 0);
+        ctx.globalCompositeOperation = "lighter";
+        for (const s of field) {
+          const a = (0.35 + 0.45 * Math.sin(t * 0.0012 * s.f + s.p)) * s.s;
+          if (a <= 0.03) continue;
+          glowDot(ctx, s.x * W, s.y * H, 4.5 * sc * s.s, c.glow, 0.35 * a);
+          ctx.globalAlpha = Math.min(1, a); ctx.fillStyle = `rgb(${c.core.join(",")})`;
+          ctx.fillRect(s.x * W - sc, s.y * H - sc, 2 * sc * s.s, 2 * sc * s.s);
+        }
+        ctx.globalAlpha = 1;
+        // the occasional shooting star, once the sky is properly dark
+        if (!meteor && sky > 0.6 && t > nextMeteor) {
+          if (nextMeteor) meteor = { x: rand(0.15, 0.85) * W, y: rand(0.05, 0.3) * H, vx: rand(-1, 1) < 0 ? -1 : 1, born: t };
+          nextMeteor = t + rand(7000, 14000);
+        }
+        if (meteor) {
+          const k = (t - meteor.born) / 700;
+          if (k >= 1) meteor = null;
+          else {
+            const L = 160 * sc, hx = meteor.x + meteor.vx * k * 420 * sc, hy = meteor.y + k * 180 * sc;
+            const tx = hx - meteor.vx * L * 0.92, ty = hy - L * 0.39, a = Math.sin(k * Math.PI);
+            const g = ctx.createLinearGradient(tx, ty, hx, hy);
+            g.addColorStop(0, "rgba(255,255,255,0)"); g.addColorStop(1, `rgba(255,255,255,${0.9 * a})`);
+            ctx.strokeStyle = g; ctx.lineWidth = 2 * sc; ctx.lineCap = "round";
+            ctx.beginPath(); ctx.moveTo(tx, ty); ctx.lineTo(hx, hy); ctx.stroke();
+            glowDot(ctx, hx, hy, 10 * sc, c.glow, 0.6 * a);
+          }
+        }
+        ctx.globalCompositeOperation = "source-over";
       },
 
       draw(ctx, f) {
@@ -222,8 +321,8 @@ export default {
         const sc = W / 1280;
         ctx.globalCompositeOperation = "lighter";
 
-        // background star field
-        if (sky > 0.02) {
+        // fallback star field over the picture, if the cut-out isn't available
+        if (sky > 0.02 && !cut()) {
           ctx.fillStyle = `rgb(${c.core.join(",")})`;
           for (const s of field) {
             const a = sky * (0.25 + 0.35 * Math.sin(t * 0.001 * s.f + s.p)) * s.s;

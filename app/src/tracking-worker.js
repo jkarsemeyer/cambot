@@ -13,16 +13,17 @@ self.importScripts = (...urls) => {
   }
 };
 
-const { FilesetResolver, HandLandmarker, FaceLandmarker } = await import("../vendor/tasks-vision/vision_bundle.mjs");
+const { FilesetResolver, HandLandmarker, FaceLandmarker, ImageSegmenter } = await import("../vendor/tasks-vision/vision_bundle.mjs");
 
 let tracker = null, kind = null;
 
 async function create({ kind: k, wasm, model, preferGpu }) {
   kind = k;
   const vision = await FilesetResolver.forVisionTasks(wasm);
-  const Task = kind === "hands" ? HandLandmarker : FaceLandmarker;
+  const Task = kind === "hands" ? HandLandmarker : kind === "segment" ? ImageSegmenter : FaceLandmarker;
   const extra = kind === "hands"
     ? { numHands: 2, minHandDetectionConfidence: 0.5, minHandPresenceConfidence: 0.5, minTrackingConfidence: 0.5 }
+    : kind === "segment" ? { outputConfidenceMasks: true, outputCategoryMask: false }
     : { numFaces: 1 };
   let lastErr;
   for (const delegate of preferGpu ? ["GPU", "CPU"] : ["CPU", "GPU"]) {
@@ -43,6 +44,26 @@ self.onmessage = async ({ data }) => {
   if (data.type === "frame") {
     const { bitmap, ts } = data;
     let landmarks = null;
+    if (kind === "segment") {
+      // Person cut-out: one 0..1 "how likely is this pixel you" value per pixel, sent as bytes.
+      let mask = null, w = bitmap.width, h = bitmap.height;
+      try {
+        const r = tracker.segmentForVideo(bitmap, ts);
+        const m = r.confidenceMasks && r.confidenceMasks[0];
+        if (m) {
+          const f = m.getAsFloat32Array(); w = m.width; h = m.height;
+          mask = new Uint8ClampedArray(f.length);
+          for (let i = 0; i < f.length; i++) mask[i] = f[i] * 255;
+        }
+        r.close && r.close();
+      } catch (e) {
+        self.postMessage({ type: "warn", message: e && e.message ? e.message : String(e) });
+      } finally {
+        bitmap.close();
+      }
+      self.postMessage({ type: "result", landmarks: mask && { mask, w, h }, ts }, mask ? [mask.buffer] : []);
+      return;
+    }
     try {
       const r = tracker.detectForVideo(bitmap, ts);
       // Only send the points: the rest of the result object can't cross to the page cheaply.

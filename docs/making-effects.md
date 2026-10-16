@@ -41,6 +41,8 @@ export default {
       grade(f) { return {}; },     // optional colour grade for the camera picture
       draw(ctx, f) {},             // draw the effect; this is what calls see
       overlay(ctx, f) {},          // guides only you see (hidden in clean view and on calls)
+      get backdropAmount() { return 0; },  // optional, 0..1: replace the room behind you (you stay in front)
+      backdrop(ctx, f) {},         // paints that background over the whole frame (uses the person cut-out)
       labels(f) { return []; },    // optional text: [{ text, sub, x, y, size, alpha, color, glow }]. Never draw
                                    // text in draw(): calls get the picture un-mirrored, so it would read backwards.
       trigger(f) {},               // Space / Test effect: fire it without gestures

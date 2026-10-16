@@ -5,7 +5,8 @@ import { bus } from "./bus.js";
 import { audio } from "./audio.js";
 import { vcam } from "./vcam.js";
 import { readHands, readFace } from "./gestures.js";
-import { createHandTracker, createFaceTracker, TRACK_W } from "./trackers.js";
+import { createHandTracker, createFaceTracker, createSegmenter } from "./trackers.js";
+import { cutout } from "./cutout.js";
 import { Holds, withTimeout, rand, escapeHtml } from "./util.js";
 import { HAND_BONES, vignette, drawLabels } from "./draw.js";
 import { EFFECTS } from "./effects/index.js";
@@ -152,6 +153,18 @@ async function startFace(stage) {
   return `running on ${where}`;
 }
 
+/* person cut-out: started the first time an effect wants to replace the background */
+let segTracker = null, segStarting = false;
+function ensureSegmenter() {
+  if (segTracker || segStarting || cutout.failed || SYSTEMS.camera.state !== "ok") return;
+  segStarting = true;
+  createSegmenter(cfg.gpu)
+    .then(({ tracker, where }) => { tracker.onResult(m => cutout.setMask(m)); segTracker = tracker; bus.emit("cutout_ready", where); })
+    .catch(e => { cutout.failed = true; bus.emit("cutout_failed", e.message || String(e)); })
+    .finally(() => { segStarting = false; });
+}
+const wantsCutout = () => (inst.backdropAmount || 0) > 0.003;
+
 /* virtual camera (desktop app only) */
 async function startVcam(stage) {
   SYSTEMS.vcam.offMsg = !isDesktop ? "desktop app only" : isMac ? "not on Mac yet" : "turned off";
@@ -214,6 +227,7 @@ function useEffect(id) {
   const settings = effectCfg(effect);
   const kit = {
     settings, view, Holds,
+    cutout: { get ready() { return cutout.ready; }, get failed() { return cutout.failed; } },
     emit: (name, data) => bus.emit(name, data),
     on: (name, fn) => unsubs.push(bus.on(name, fn)),
     sfx: { play: (name, ...args) => audio.play(name, ...args), loop: kind => audio.loop(kind) },
@@ -264,19 +278,24 @@ function frame(now) {
 // when done; drawing never waits for them. A tracker still busy with the last frame skips this one.
 function feedTrackers() {
   if (grabbing || video.readyState < 2 || video.currentTime === lastVideoTime) return;
-  const free = [handTracker, faceTracker].filter(t => t && !t.busy);
+  const needSeg = wantsCutout();
+  if (needSeg) ensureSegmenter();
+  const free = [handTracker, faceTracker, needSeg ? segTracker : null].filter(t => t && !t.busy);
   if (!free.length) return;
   lastVideoTime = video.currentTime;
   grabbing = true;
   const t = ts();
   const vw = video.videoWidth || 1280, vh = video.videoHeight || 720;
-  const opts = { resizeWidth: TRACK_W, resizeHeight: Math.round(TRACK_W * vh / vw / 2) * 2, resizeQuality: "low" };
-  // Shrink the camera frame once, then copy the small version for the second tracker.
-  createImageBitmap(video, opts)
-    .then(async first => {
-      const bmps = [first];
-      for (let i = 1; i < free.length; i++) bmps.push(await createImageBitmap(first));
-      bmps.forEach((b, i) => free[i].send(b, t));
+  // One shrunken copy of the frame per size the free trackers want, then a copy each for the rest.
+  const widths = [...new Set(free.map(tr => tr.inputW || 640))];
+  Promise.all(widths.map(w => createImageBitmap(video, { resizeWidth: w, resizeHeight: Math.round(w * vh / vw / 2) * 2, resizeQuality: "low" })))
+    .then(async firsts => {
+      const used = new Set();
+      for (const tr of free) {
+        const src = firsts[widths.indexOf(tr.inputW || 640)];
+        tr.send(used.has(src) ? await createImageBitmap(src) : src, t);
+        used.add(src);
+      }
     })
     .catch(e => console.warn(e))
     .finally(() => { grabbing = false; });
@@ -302,6 +321,11 @@ function render(f) {
     octx.globalCompositeOperation = "soft-light";
     octx.fillStyle = `rgba(${g.tint.join(",")},${g.tintAmount})`;
     octx.fillRect(-40, -40, W + 80, H + 80);
+  }
+  // Effects can replace the room behind you (e.g. Star Map's night sky).
+  const bd = inst.backdrop ? (inst.backdropAmount || 0) : 0;
+  if (bd > 0.003) {
+    try { cutout.replaceBackground(octx, f, bd, (c, fr) => inst.backdrop(c, fr), view.mirror); } catch (e) { console.error(e); }
   }
   octx.save();
   try { inst.draw(octx, f); } catch (e) { console.error(e); }
