@@ -12,6 +12,14 @@ Gesture-triggered webcam effects for video calls. CAMBOT appears in Zoom, Teams 
 
 To get your voice into calls, install [VB-Cable](https://vb-audio.com/Cable/) once (free), then restart CAMBOT. It picks VB-Cable automatically.
 
+## What calls see
+
+By default calls get exactly what's on your CAMBOT screen: the mirrored view. That keeps drawings next to your
+hand and names over your stars, all reading the right way. (Real text behind you, like a poster, appears
+reversed to others.) Untick **Send what I see (mirrored)** under *Send to calls* for the true camera view.
+Note: Meet mirrors your *own* preview, so in Meet's little self-view things look backwards. Everyone else sees
+them correctly. Trust the CAMBOT window.
+
 ## Mac
 
 1. From [cambot-releases](https://github.com/jkarsemeyer/cambot-releases/releases/latest), download
@@ -43,7 +51,7 @@ signed apps update themselves.
 | 1 | Storm Caller | Raise both hands, make fists, hold. Lightning strikes, then your eyes glow and your voice drops. Raise open palms to power down. |
 | 2 | Fire Palm | Show an open palm to catch fire. Make a fist to put it out. Both palms burning lights your eyes and voice. |
 | 3 | Star Map | Pinch to place a star (keep pinching to drag it; pinch a star to move it). Point at a star and sweep to others to link them. Lower your finger to finish: 3 or more linked stars get a silly name (The Chork, Deez, Yo Mama…), subtitled "An Array of Stars". Each constellation fades the room behind you further into a night sky (full night after 4, adjustable). Two fists clear the sky. |
-| 4 | Air Draw | Pinch your thumb and finger to draw; release to lift the pen. Hold still at the end of a stroke to straighten a line or round a circle. Pinch a colour in the palette at the top of your screen (only you see it), or CLR to clear. A held fist erases what it moves over; two fists clear. Writing reads correctly on calls. Backspace undoes. |
+| 4 | Air Draw | Pinch your thumb and finger to draw; release to lift the pen. Hold still at the end of a stroke to straighten a line or round a circle. Pinch a colour in the palette at the top of your screen (only you see it), or CLR to clear. A held fist erases what it moves over; two fists clear. Calls get the same mirrored view you see, so drawings line up with your hand and read correctly. Backspace undoes. |
 
 ### Gesture shortcuts (work in every mode)
 

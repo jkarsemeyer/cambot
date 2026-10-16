@@ -28,6 +28,8 @@
 
 - **Air Draw ink is a "readable" layer** (`readable()` on an effect): shown as-is on screen and sent to calls without the mirror flip, so air-written words read correctly for viewers. Trade-off: on calls the ink sits on the opposite side from your hand. A setting puts it back in the picture ("lined up with you") for drawing around yourself.
 
+- **Calls get the mirrored view by default** (`callMirror`). Un-mirroring for calls put air-drawn ink on the opposite side from your hand. Sending the screen view keeps every layer aligned and readable; the cost is that real-world text behind you reads backwards to viewers. The readable/labels machinery still handles the true-view option.
+
 ## Known limits
 
 - The installer is unsigned, so Windows SmartScreen warns on first run.

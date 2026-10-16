@@ -48,7 +48,7 @@ export default {
     { key: "style", label: "Ink", type: "select", options: [["neon", "Neon"], ["marker", "Marker"]], default: "neon" },
     { key: "width", label: "Thickness", type: "range", min: 2, max: 16, step: 1, default: 6, format: v => `${v} px` },
     { key: "fade", label: "Ink fades after", type: "select", options: [[0, "Never"], [5, "5 seconds"], [15, "15 seconds"], [60, "1 minute"]], default: 0 },
-    { key: "callView", label: "On calls", type: "select", options: [["readable", "Writing reads correctly"], ["follow", "Lined up with you (writing is backwards)"]], default: "readable" },
+    { key: "callView", label: "On calls (if not sending the mirrored view)", type: "select", options: [["readable", "Writing reads correctly"], ["follow", "Lined up with you (writing is backwards)"]], default: "readable" },
     { key: "snap", label: "Hold still to snap lines and circles", type: "toggle", default: true },
     { key: "wipe", label: "Erase with a held fist", type: "toggle", default: true },
   ],

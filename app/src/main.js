@@ -281,7 +281,8 @@ function frame(now) {
     if (readable) tctx.drawImage(readable, 0, 0);
   }
   drawLabels(tctx, labels);
-  if (vcam.running) vcam.send(out, now, cfg.mirror, labels, readable);
+  // With callMirror on, calls get exactly what you see here (mirrored), so nothing needs un-flipping.
+  if (vcam.running) vcam.send(out, now, cfg.mirror && !cfg.callMirror, labels, readable);
   if (now - lastUI > 100) { lastUI = now; updateUI(); }
 }
 // Hand each new camera frame to whichever trackers are free. They run in workers and report back
@@ -483,6 +484,7 @@ bindCheck("hearVoice", "hearVoice", () => { audio.applySettings(); $("fbWarn").h
 bindCheck("callSfx", "callSfx", () => audio.applySettings());
 bindCheck("voiceForce", "voiceForce");
 bindCheck("vcamOn", "vcam", () => runSys("vcam"));
+bindCheck("callMirror", "callMirror");
 bindRange("monitorVol", "monitorVol", v => `${Math.round(v * 100)}%`, () => audio.applySettings());
 bindRange("sfxVol", "sfxVol", v => `${Math.round(v * 100)}%`, () => audio.applySettings());
 $("fbWarn").hidden = !cfg.hearVoice;
