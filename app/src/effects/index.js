@@ -4,5 +4,6 @@
 import stormCaller from "./storm-caller.js";
 import firePalm from "./fire-palm.js";
 import starMap from "./star-map.js";
+import airDraw from "./air-draw.js";
 
-export const EFFECTS = [stormCaller, firePalm, starMap];
+export const EFFECTS = [stormCaller, firePalm, starMap, airDraw];

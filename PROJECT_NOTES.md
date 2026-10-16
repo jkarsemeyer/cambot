@@ -26,6 +26,8 @@
 
 - **Person cut-out** (`cutout.js`, `segment` worker with selfie_segmenter_landscape at 320 wide): starts the first time an effect returns `backdropAmount > 0`, and is only fed frames while one does. Star Map uses it to fade the room into a night sky, a step per constellation. If it fails, effects fall back to dimming the whole picture.
 
+- **Air Draw ink is a "readable" layer** (`readable()` on an effect): shown as-is on screen and sent to calls without the mirror flip, so air-written words read correctly for viewers. Trade-off: on calls the ink sits on the opposite side from your hand. A setting puts it back in the picture ("lined up with you") for drawing around yourself.
+
 ## Known limits
 
 - The installer is unsigned, so Windows SmartScreen warns on first run.

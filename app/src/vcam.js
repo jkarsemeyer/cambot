@@ -60,7 +60,8 @@ export const vcam = {
   // Call once per animation frame with the clean output canvas.
   // unmirror: the screen view is mirrored like a mirror; call apps expect the true image and mirror it themselves.
   // labels: effect text in picture coordinates, drawn after un-mirroring so it reads the right way round.
-  send(source, now, unmirror, labels) {
+  // readable: a canvas the size of the picture, drawn on top WITHOUT un-mirroring (air-drawn writing).
+  send(source, now, unmirror, labels, readable) {
     if (!running || inFlight || now - last < FRAME_MS - 2) return;
     last = now;
     // fill 16:9, cropping the source if it's a different shape
@@ -70,6 +71,7 @@ export const vcam = {
     ctx.setTransform(unmirror ? -1 : 1, 0, 0, 1, unmirror ? W : 0, 0);
     ctx.drawImage(source, (W - dw) / 2, (H - dh) / 2, dw, dh);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (readable) ctx.drawImage(readable, (W - dw) / 2, (H - dh) / 2, dw, dh);
     if (labels && labels.length) {
       const ox = (W - dw) / 2, oy = (H - dh) / 2;
       drawLabels(ctx, labels, p => ({ x: unmirror ? W - (ox + p.x * scale) : ox + p.x * scale, y: oy + p.y * scale }), scale);

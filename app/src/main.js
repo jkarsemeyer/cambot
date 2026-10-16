@@ -15,7 +15,10 @@ import { createShortcuts, SHORTCUTS } from "./shortcuts.js";
 const $ = id => document.getElementById(id);
 const out = $("out"), octx = out.getContext("2d");               // the clean picture calls receive
 const overlay = $("overlay"), vctx = overlay.getContext("2d");
-const textLayer = $("text"), tctx = textLayer.getContext("2d");    // effect text (names), screen copy   // guides and tracking points, screen only
+const textLayer = $("text"), tctx = textLayer.getContext("2d");    // effect text (names), screen copy
+// "Readable" layer for effects (e.g. air-drawn ink): shown as-is on screen and sent to calls WITHOUT the mirror flip,
+// so writing reads correctly for the people on the call.
+const readLayer = document.createElement("canvas"), rctx = readLayer.getContext("2d");   // guides and tracking points, screen only
 const video = $("cam");
 const view = { W: 1280, H: 720, get mirror() { return cfg.mirror; } };
 const isDesktop = !!(window.cambot && window.cambot.isDesktop);
@@ -270,8 +273,15 @@ function frame(now) {
   try { labels = (inst.labels && inst.labels(f)) || []; } catch (e) { console.error(e); }
   labels = labels.map(l => ({ ...l, ...shortcuts.mapPoint(l, f.W, f.H) }));
   tctx.clearRect(0, 0, f.W, f.H);
+  let readable = null;
+  if (inst.readable) {
+    if (readLayer.width !== f.W || readLayer.height !== f.H) { readLayer.width = f.W; readLayer.height = f.H; }
+    rctx.clearRect(0, 0, f.W, f.H);
+    try { if (inst.readable(rctx, f) !== false) readable = readLayer; } catch (e) { console.error(e); }
+    if (readable) tctx.drawImage(readable, 0, 0);
+  }
   drawLabels(tctx, labels);
-  if (vcam.running) vcam.send(out, now, cfg.mirror, labels);
+  if (vcam.running) vcam.send(out, now, cfg.mirror, labels, readable);
   if (now - lastUI > 100) { lastUI = now; updateUI(); }
 }
 // Hand each new camera frame to whichever trackers are free. They run in workers and report back
@@ -536,6 +546,7 @@ window.addEventListener("keydown", e => {
   else if (k === "f") { (document.fullscreenElement ? document.exitFullscreen() : $("stage").requestFullscreen()).catch(() => {}); }
   else if (k === " ") { e.preventDefault(); inst.trigger && inst.trigger(currentFrame()); }
   else if (k === "p") { inst.reset && inst.reset(currentFrame()); shortcuts.reset(); }
+  else if (e.key === "Backspace") { e.preventDefault(); inst.undo && inst.undo(); }
   else if (k === "z") shortcuts.trigger("zoom", currentFrame());
   else if (k === "m") shortcuts.trigger("mirror", currentFrame());
   else if (k === "c") shortcuts.trigger("confetti", currentFrame());

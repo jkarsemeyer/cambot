@@ -43,6 +43,8 @@ export default {
       overlay(ctx, f) {},          // guides only you see (hidden in clean view and on calls)
       get backdropAmount() { return 0; },  // optional, 0..1: replace the room behind you (you stay in front)
       backdrop(ctx, f) {},         // paints that background over the whole frame (uses the person cut-out)
+      readable(ctx, f) {},         // optional: drawn on top and sent to calls WITHOUT the mirror flip, so writing
+                                   // reads correctly (Air Draw's ink). Return false to skip this frame.
       labels(f) { return []; },    // optional text: [{ text, sub, x, y, size, alpha, color, glow }]. Never draw
                                    // text in draw(): calls get the picture un-mirrored, so it would read backwards.
       trigger(f) {},               // Space / Test effect: fire it without gestures
