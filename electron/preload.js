@@ -27,6 +27,7 @@ function loadCamera() {
 
 contextBridge.exposeInMainWorld("cambot", {
   isDesktop: true,
+  platform: process.platform,
   autoStart: true,
   version: info.version,
   updates: {

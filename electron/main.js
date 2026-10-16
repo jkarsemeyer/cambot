@@ -1,7 +1,7 @@
 // CAMBOT desktop app (Electron main process).
 // Serves the app folder at cambot://app/, grants camera/mic access, and manages the CAMBOT Camera driver.
 
-const { app, BrowserWindow, protocol, session, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, protocol, session, ipcMain, shell, systemPreferences, net } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
@@ -35,7 +35,13 @@ if (!app.requestSingleInstanceLock()) {
   let win = null;
   app.on("second-instance", () => { if (win) { if (win.isMinimized()) win.restore(); win.focus(); } });
 
-  app.whenReady().then(() => {
+  app.whenReady().then(async () => {
+    // macOS asks once for camera and microphone access; the page can't start them until it's granted.
+    if (process.platform === "darwin") {
+      for (const kind of ["camera", "microphone"]) {
+        try { await systemPreferences.askForMediaAccess(kind); } catch (e) { console.warn(e); }
+      }
+    }
     protocol.handle("cambot", async request => {
       const url = new URL(request.url);
       let rel = decodeURIComponent(url.pathname);
@@ -79,7 +85,27 @@ if (!app.requestSingleInstanceLock()) {
    Checks the public cambot-releases repo at start-up and every 2 hours. A new version
    downloads quietly in the background; the panel then offers "Restart to update".
    If you don't restart, it installs the next time CAMBOT closes. */
+const RELEASES = "https://github.com/jkarsemeyer/cambot-releases/releases/latest";
+
+// Mac: the app isn't signed with an Apple Developer ID, and macOS only installs updates for signed
+// apps. So instead of updating itself, it checks for a newer version and offers a download link.
+function startMacUpdateCheck(getWin) {
+  const newer = (a, b) => { const x = a.split(".").map(Number), y = b.split(".").map(Number); for (let i = 0; i < 3; i++) { if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); } return false; };
+  const check = async () => {
+    try {
+      const r = await net.fetch("https://api.github.com/repos/jkarsemeyer/cambot-releases/releases/latest", { headers: { "user-agent": "CAMBOT" } });
+      if (!r.ok) return;
+      const v = String((await r.json()).tag_name || "").replace(/^v/, "");
+      const w = getWin();
+      if (v && newer(v, app.getVersion()) && w && !w.isDestroyed()) w.webContents.send("update:state", { state: "available", detail: v });
+    } catch (e) { console.warn("Update check failed", e); }
+  };
+  setTimeout(check, 5000);
+  setInterval(check, 2 * 60 * 60 * 1000);
+}
+
 function startUpdates(getWin) {
+  if (process.platform === "darwin") return startMacUpdateCheck(getWin);
   const tell = (state, detail) => { const w = getWin(); if (w && !w.isDestroyed()) w.webContents.send("update:state", { state, detail }); };
   autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
@@ -94,7 +120,10 @@ function startUpdates(getWin) {
   setInterval(check, 2 * 60 * 60 * 1000);
   ipcMain.handle("update:check", check);
 }
-ipcMain.handle("update:install", () => autoUpdater.quitAndInstall(false, true));
+ipcMain.handle("update:install", () => {
+  if (process.platform === "darwin") return shell.openExternal(RELEASES);
+  autoUpdater.quitAndInstall(false, true);
+});
 
 /* ---------------------------------------------------------------- IPC */
 ipcMain.on("cambot:info", e => {

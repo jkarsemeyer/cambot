@@ -1,4 +1,4 @@
-name: Build Windows installer
+name: Build installers
 
 on:
   push:
@@ -89,3 +89,51 @@ jobs:
           $files = @($exe.FullName, "$($exe.FullName).blockmap", "dist\latest.yml")
           foreach ($f in $files) { if (-not (Test-Path $f)) { Write-Error "Missing $f"; exit 1 } }
           gh release create "v$env:VERSION" $files --repo jkarsemeyer/cambot-releases --title "CAMBOT $env:VERSION" --notes "Build of $($env:GITHUB_SHA.Substring(0,7))." --latest
+
+  # Mac: runs after Windows so the release already exists, then adds the two Mac disk images to it.
+  mac:
+    needs: windows
+    runs-on: macos-14
+    env:
+      VERSION: 0.2.${{ github.run_number }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm version ${{ env.VERSION }} --no-git-tag-version --allow-same-version
+
+      - name: Build Mac disk images (Apple Silicon and Intel)
+        run: npx electron-builder --mac --publish never
+
+      # Launch the built app for a few seconds to prove it starts (signature valid, nothing crashes on load).
+      - name: Check the app launches
+        run: |
+          APP="dist/mac-arm64/CAMBOT.app"
+          codesign --verify --deep --strict "$APP" && echo "signature ok"
+          "$APP/Contents/MacOS/CAMBOT" > launch.log 2>&1 &
+          PID=$!
+          sleep 20
+          if kill -0 $PID 2>/dev/null; then echo "CAMBOT is running after 20s"; kill $PID; else echo "CAMBOT exited early"; cat launch.log; exit 1; fi
+          ls -lh dist/*.dmg
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: CAMBOT-${{ env.VERSION }}-mac
+          path: dist/*.dmg
+          if-no-files-found: error
+
+      - name: Add to releases
+        if: github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASES_TOKEN: ${{ secrets.RELEASES_TOKEN }}
+        run: |
+          gh release upload "v$VERSION" dist/*.dmg --repo jkarsemeyer/cambot --clobber
+          if [ -n "$RELEASES_TOKEN" ]; then GH_TOKEN="$RELEASES_TOKEN" gh release upload "v$VERSION" dist/*.dmg --repo jkarsemeyer/cambot-releases --clobber; fi

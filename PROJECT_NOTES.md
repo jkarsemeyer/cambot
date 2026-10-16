@@ -22,6 +22,8 @@
 - **Text is drawn separately from the picture** (`labels()` in an effect, `drawLabels` in draw.js): once on a screen layer and once into the call frame after it's un-mirrored, so names read correctly for you and for people on the call. Baking text into the picture made it backwards on calls.
 - **Pitch shifter uses waveform-matched splices** (pitch-worklet.js): each jump of the read point searches for where the waveform lines up, so grains join in phase. The old fixed-jump shifter added 10–15% loudness flutter that sounded like the voice cutting out.
 
+- **Mac build** (`mac` job in build.yml, macos-14 runner): arm64 and x64 .dmg files added to each release. Ad-hoc signed (build/afterPack.js) so Apple Silicon will run it; not Developer ID signed, so first launch needs Open Anyway, there's no self-update (it offers a download link instead), and there's no virtual camera: a macOS Camera Extension needs a paid Apple Developer account to sign. Voice works through BlackHole 2ch.
+
 ## Known limits
 
 - The installer is unsigned, so Windows SmartScreen warns on first run.

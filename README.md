@@ -12,6 +12,24 @@ Gesture-triggered webcam effects for video calls. CAMBOT appears in Zoom, Teams 
 
 To get your voice into calls, install [VB-Cable](https://vb-audio.com/Cable/) once (free), then restart CAMBOT. It picks VB-Cable automatically.
 
+## Mac
+
+1. From [cambot-releases](https://github.com/jkarsemeyer/cambot-releases/releases/latest), download
+   `CAMBOT-x.y.z-mac-arm64.dmg` for Apple Silicon (M1 and later) or `-mac-x64.dmg` for Intel Macs.
+   Not sure? Apple menu → About This Mac: "Chip: Apple M…" means arm64.
+2. Open the .dmg and drag CAMBOT into Applications.
+3. First launch: open CAMBOT. macOS says it can't check it for malicious software. Click **Done**, then go to
+   **System Settings → Privacy & Security**, scroll down, and click **Open Anyway** next to CAMBOT.
+   (The app isn't signed with an Apple Developer ID, so macOS asks this once per new version.)
+4. Allow camera and microphone access when asked.
+5. For your voice in calls, install [BlackHole 2ch](https://existential.audio/blackhole/) (free) and restart
+   CAMBOT. In the call app, set **Microphone** to **BlackHole 2ch**.
+
+**Not on Mac yet: CAMBOT Camera.** macOS only loads virtual cameras signed with a paid Apple Developer account,
+so the Mac app can't appear as a camera in call apps yet. Everything else works.
+**Updates on Mac:** CAMBOT tells you when a new version is out and opens the download page. macOS only lets
+signed apps update themselves.
+
 ## Use it on a call
 
 1. Keep CAMBOT running. It can be behind other windows or minimised.

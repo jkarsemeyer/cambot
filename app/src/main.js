@@ -18,6 +18,9 @@ const textLayer = $("text"), tctx = textLayer.getContext("2d");    // effect tex
 const video = $("cam");
 const view = { W: 1280, H: 720, get mirror() { return cfg.mirror; } };
 const isDesktop = !!(window.cambot && window.cambot.isDesktop);
+const isMac = isDesktop ? window.cambot.platform === "darwin" : /Mac/.test(navigator.platform);
+// Virtual audio cable: VB-Cable on Windows, BlackHole on Mac.
+const CABLE_OUT = /CABLE Input|BlackHole/i, CABLE_IN = /^CABLE Output|BlackHole/i;
 document.body.classList.toggle("desktop", isDesktop);
 
 /* ---------------------------------------------------------------- event log */
@@ -151,8 +154,8 @@ async function startFace(stage) {
 
 /* virtual camera (desktop app only) */
 async function startVcam(stage) {
-  SYSTEMS.vcam.offMsg = !isDesktop ? "desktop app only" : "turned off";
-  if (!isDesktop || !cfg.vcam) { vcam.stop(); return "off"; }
+  SYSTEMS.vcam.offMsg = !isDesktop ? "desktop app only" : isMac ? "not on Mac yet" : "turned off";
+  if (!isDesktop || isMac || !cfg.vcam) { vcam.stop(); return "off"; }
   stage("checking…");
   const st = await withTimeout(vcam.status(), 8000, "Checking the virtual camera");
   if (!st.installed) {
@@ -183,14 +186,18 @@ async function fillDevices() {
     if (current != null && [...sel.options].some(o => o.value === current)) sel.value = current;
   };
   fill($("camDev"), opts("videoinput").filter(d => !/CAMBOT Camera/i.test(d.label)), camStream?.getVideoTracks()[0]?.getSettings().deviceId);
-  fill($("micDev"), opts("audioinput").filter(d => !/^CABLE Output/i.test(d.label)), micStream?.getAudioTracks()[0]?.getSettings().deviceId);
+  fill($("micDev"), opts("audioinput").filter(d => !CABLE_IN.test(d.label)), micStream?.getAudioTracks()[0]?.getSettings().deviceId);
   const outs = opts("audiooutput");
   fill($("monDev"), outs.filter(d => d.deviceId !== "default"), cfg.monitorDevice, `<option value="">System default</option>`);
   fill($("callDev"), outs.filter(d => d.deviceId !== "default"), cfg.callDevice, `<option value="">Off: don't send my voice</option>`);
-  const cable = outs.find(d => /CABLE Input/i.test(d.label));
-  $("cableHint").innerHTML = cable
-    ? (cfg.callDevice === cable.deviceId ? "Sending to VB-Cable. In your call app, set the microphone to <b>CABLE Output</b>." : "VB-Cable found. Choose <b>CABLE Input</b> above to send your voice.")
-    : "Install VB-Cable (free, vb-audio.com/Cable) once, then restart CAMBOT. It shows up here as <b>CABLE Input</b>.";
+  const cable = outs.find(d => CABLE_OUT.test(d.label));
+  $("cableHint").innerHTML = isMac
+    ? (cable
+      ? (cfg.callDevice === cable.deviceId ? "Sending to BlackHole. In your call app, set the microphone to <b>BlackHole 2ch</b>." : "BlackHole found. Choose <b>BlackHole 2ch</b> above to send your voice.")
+      : "Install BlackHole 2ch (free, existential.audio/blackhole) once, then restart CAMBOT.")
+    : (cable
+      ? (cfg.callDevice === cable.deviceId ? "Sending to VB-Cable. In your call app, set the microphone to <b>CABLE Output</b>." : "VB-Cable found. Choose <b>CABLE Input</b> above to send your voice.")
+      : "Install VB-Cable (free, vb-audio.com/Cable) once, then restart CAMBOT. It shows up here as <b>CABLE Input</b>.");
   if (typeof AudioContext.prototype.setSinkId !== "function") {
     $("monDev").disabled = $("callDev").disabled = true;
   }
@@ -525,6 +532,10 @@ const shortcuts = createShortcuts({
 $("shortcutList").innerHTML = SHORTCUTS.map(s => `<li><b>${escapeHtml(s.name)}</b><span>${escapeHtml(s.how)}</span></li>`).join("");
 
 /* ---------------------------------------------------------------- start */
+if (isMac) {
+  $("vcamOn").disabled = true;
+  $("vcamState").textContent = "The Mac app can't act as a camera in call apps yet. See the README for options.";
+}
 useEffect(cfg.effect);
 renderSys();
 requestAnimationFrame(frame);
@@ -543,11 +554,11 @@ async function autoPickCable() {
   if (cfg.callDevice || cfg.cableOffered || !sysOk("sound")) return;
   try {
     const devs = await navigator.mediaDevices.enumerateDevices();
-    const cable = devs.find(d => d.kind === "audiooutput" && /CABLE Input/i.test(d.label));
+    const cable = devs.find(d => d.kind === "audiooutput" && CABLE_OUT.test(d.label));
     if (!cable) return;
     cfg.cableOffered = true; cfg.callDevice = cable.deviceId; save();
     await audio.setCallDevice(cable.deviceId);
-    bus.emit("call_output", "VB-Cable found and selected");
+    bus.emit("call_output", `${isMac ? "BlackHole" : "VB-Cable"} found and selected`);
     fillDevices();
   } catch (e) { console.warn(e); }
 }
@@ -555,13 +566,15 @@ async function autoPickCable() {
 /* updates (desktop app): show a bar when a new version has downloaded */
 if (isDesktop && window.cambot.updates) {
   window.cambot.updates.onState(({ state, detail }) => {
-    if (state === "ready") {
-      $("updateMsg").textContent = `CAMBOT ${detail} is ready.`;
+    if (state === "ready" || state === "available") {
+      $("updateMsg").textContent = state === "ready" ? `CAMBOT ${detail} is ready.` : `CAMBOT ${detail} is out.`;
+      $("updateBtn").textContent = state === "ready" ? "Restart to update" : "Download";
       $("updateBar").hidden = false;
     }
-    if (state === "ready" || state === "error") bus.emit(`update_${state}`, detail);
+    if (state === "ready" || state === "available" || state === "error") bus.emit(`update_${state}`, detail);
   });
   $("updateBtn").addEventListener("click", () => {
+    if (isMac) { window.cambot.updates.install(); return; }   // opens the download page
     $("updateBtn").disabled = true; $("updateMsg").textContent = "Restarting…";
     window.cambot.updates.install();
   });
