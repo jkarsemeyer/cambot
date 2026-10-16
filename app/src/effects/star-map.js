@@ -65,21 +65,25 @@ const COLORS = {
   rose:   { glow: [255, 140, 200], core: [255, 234, 246], tint: [45, 15, 70] },
 };
 
-// Made-up constellation names, built from star-sounding syllables. Every one carries the same subtitle.
+// Constellation names: silly on purpose. Every one carries the same subtitle.
 const SUBTITLE = "— An Array of Stars —";
-const NAME_START = ["Ael", "Bry", "Cae", "Dra", "Ely", "Iri", "Kae", "Lyr", "Mor", "Nyx", "Ori", "Pel", "Qui", "Rhy", "Sol", "Tal", "Vae", "Zeph", "Ast", "Cyr", "Hal", "Ser", "Thal", "Vel", "Eos", "Ama", "Neb", "Cor"];
-const NAME_MID = ["a", "e", "i", "o", "ae", "ia", "or", "an", "el", "ar", "yn", "ith", "ol", "en"];
-const NAME_END = ["ris", "dra", "lia", "nox", "thea", "mir", "vos", "lune", "tara", "phine", "rion", "sa", "dis", "nea", "vel", "ion", "aria", "is", "ora", "eth"];
-const pick = a => a[Math.floor(Math.random() * a.length)];
+const SILLY_NAMES = [
+  "The Chork", "The Dwingle", "The Dorkus", "The Krundle", "SG0001", "Deez", "??? WHO KNOWS ???",
+  "Lil Baby Star", "Yo Mama", "The Big Smoosh", "Gerald", "Snorbo", "The Flonk", "Mega Blorp",
+  "Sir Twinkles McGee", "Pointy Boi", "Thursday", "The Schnoz", "Bingus", "Chonk Major", "Chonk Minor",
+  "Gary From Accounts", "The Zorp", "Space Potato", "Noodle Arm", "The Wobbler", "Unnamed Nugget",
+  "Big Dipper's Cousin", "The Grumbus", "Spaghetto", "Lord Sparkle", "The Hork", "Meatball Prime",
+  "Kevin", "Sneeb", "The Blob That Ate Ohio", "Clumsy Gus",
+];
+// Deals names in a shuffled order with no repeats. After a full round they come back as "II", "III"...
 function makeName(taken) {
-  for (let i = 0; i < 50; i++) {
-    const a = pick(NAME_START), z = pick(NAME_END);
-    if (a.toLowerCase() === z) continue;   // no "Velvel"
-    let n = a + (Math.random() < 0.6 ? pick(NAME_MID) : "") + z;
-    n = n.replace(/([aeiouy])\1+/g, "$1").replace(/([^aeiouy])\1\1+/g, "$1$1");   // tidy doubled letters
-    if (n.length >= 5 && n.length <= 11 && !taken.has(n)) return n;
+  const fresh = SILLY_NAMES.filter(n => !taken.has(n));
+  if (fresh.length) return fresh[Math.floor(Math.random() * fresh.length)];
+  for (let round = 2; ; round++) {
+    const roman = ["", "", "II", "III", "IV", "V", "VI", "VII", "VIII", "IX", "X"][round] || String(round);
+    const left = SILLY_NAMES.map(n => `${n} ${roman}`).filter(n => !taken.has(n));
+    if (left.length) return left[Math.floor(Math.random() * left.length)];
   }
-  return "Nova " + (taken.size + 1);
 }
 // C major pentatonic, two octaves: every combination sounds pleasant
 const NOTES = [523.25, 587.33, 659.25, 783.99, 880, 1046.5, 1174.66, 1318.5, 1567.98, 1760];
