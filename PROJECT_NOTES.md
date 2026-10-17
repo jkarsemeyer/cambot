@@ -30,6 +30,8 @@
 
 - **Calls get the mirrored view by default** (`callMirror`). Un-mirroring for calls put air-drawn ink on the opposite side from your hand. Sending the screen view keeps every layer aligned and readable; the cost is that real-world text behind you reads backwards to viewers. The readable/labels machinery still handles the true-view option.
 
+- **Presenting** (`present.js`): slides from a Google Slides link (desktop app downloads `/export/pdf`; needs "Anyone with the link") or a PDF, rendered with vendored pdf.js (legacy build, for older Chromium). Slides replace the room via the person cut-out (pre-warmed when a deck loads); fallback is slide + you in a corner box. Card-turn transition; it also hides the un-mirror switch when calls are set to the true view. Gestures in shortcuts.js: curtains open/close, one-hand swipe (return stroke ignored for 1.2 s). Clicker Page Up/Down are registered globally only while presenting.
+
 ## Known limits
 
 - The installer is unsigned, so Windows SmartScreen warns on first run.

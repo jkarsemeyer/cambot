@@ -28,6 +28,12 @@ function loadCamera() {
 contextBridge.exposeInMainWorld("cambot", {
   isDesktop: true,
   platform: process.platform,
+  slides: {
+    // Error messages from the main process arrive wrapped ("Error invoking remote method…"); keep just ours.
+    fetch: id => ipcRenderer.invoke("slides:fetch", id).catch(e => { throw new Error(String(e.message || e).replace(/^Error invoking remote method '[^']+': (Error: )?/, "")); }),
+    keys: on => ipcRenderer.send("slides:keys", !!on),
+    onKey: fn => ipcRenderer.on("slides:key", (_e, dir) => fn(dir)),
+  },
   autoStart: true,
   version: info.version,
   updates: {

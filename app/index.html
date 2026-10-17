@@ -112,6 +112,8 @@ section h3 { margin: 0; font: 500 11px/1 var(--f-mono); letter-spacing: .14em; t
 .row output { font: 11px var(--f-mono); color: var(--muted); min-width: 48px; text-align: right; font-variant-numeric: tabular-nums; }
 .row.two { grid-template-columns: 112px minmax(0, 1fr); }
 input[type=range] { width: 100%; accent-color: var(--volt); }
+input[type=url] { width: 100%; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; font-size: 12px; min-width: 0; color: var(--text); }
+.slidenum { font: 500 12px var(--f-mono); color: var(--muted); align-self: center; min-width: 54px; text-align: center; }
 select { width: 100%; background: var(--panel-2); border: 1px solid var(--line); border-radius: 5px; padding: 6px 8px; font-size: 12px; min-width: 0; }
 .toggle { display: flex; gap: 8px; align-items: center; font-size: 13px; cursor: pointer; }
 .toggle input { accent-color: var(--volt); width: 16px; height: 16px; flex: none; }
@@ -179,6 +181,22 @@ kbd { font: 11px var(--f-mono); border: 1px solid var(--line); border-bottom-wid
       <h3>Effect settings</h3>
       <div id="fxSettings" style="display:grid;gap:10px"></div>
       <div class="btns"><button class="btn ghost" id="fxReset">Reset to defaults</button></div>
+    </section>
+
+    <section>
+      <h3>Present slides</h3>
+      <div class="row two"><label for="slidesLink">Slides link</label><input type="url" id="slidesLink" placeholder="docs.google.com/presentation/d/…"></div>
+      <div class="btns">
+        <button class="btn ghost" id="slidesLoad">Load link</button>
+        <label class="btn ghost" for="slidesFile">Open PDF…</label><input type="file" id="slidesFile" accept="application/pdf,.pdf" hidden>
+      </div>
+      <p class="note" id="slidesNote">Paste a Google Slides link shared as “Anyone with the link”, or open a PDF (in Slides: File → Download → PDF). You can also drop a PDF onto CAMBOT.</p>
+      <div class="btns">
+        <button class="btn" id="presentBtn" disabled>Present (S)</button>
+        <button class="btn ghost" id="slidePrev" disabled>‹</button>
+        <span class="slidenum" id="slideNum">–</span>
+        <button class="btn ghost" id="slideNext" disabled>›</button>
+      </div>
     </section>
 
     <section>

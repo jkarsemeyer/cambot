@@ -12,6 +12,21 @@ Gesture-triggered webcam effects for video calls. CAMBOT appears in Zoom, Teams 
 
 To get your voice into calls, install [VB-Cable](https://vb-audio.com/Cable/) once (free), then restart CAMBOT. It picks VB-Cable automatically.
 
+## Present slides
+
+Put your slides behind you, with you cut out in front of them.
+
+1. Under **Present slides** in the panel, paste a Google Slides link and click **Load link**. The deck must be
+   shared as *Anyone with the link → Viewer*. For any other deck: in Slides, **File → Download → PDF**, then
+   **Open PDF…** (or drop the PDF onto CAMBOT).
+2. Start: **part your hands like curtains** (both open hands together, then sweep them apart), click
+   **Present**, or press **S**. The picture turns over like a card and you're in front of your first slide.
+3. Next / previous: **swipe one open hand** towards your left for next, towards your right for previous.
+   A presentation clicker works too, even while the call app is in front. So do the arrow keys in CAMBOT.
+4. Stop: **close the curtains** (sweep your hands back together), or press **S** again.
+
+Effects keep working on top of your slides. The link is remembered; next time, Present loads it for you.
+
 ## What calls see
 
 By default calls get exactly what's on your CAMBOT screen: the mirrored view. That keeps drawings next to your
@@ -64,6 +79,7 @@ signed apps update themselves.
 | Both open hands upright, side by side | Mirror at the middle of your face. Again for the other side, again for off |
 | Thumbs up | Confetti |
 | Peace sign | Glitch burst |
+| Part both open hands like curtains | Start presenting (once slides are loaded). Close them to stop; swipe one hand to change slides |
 
 Hold each gesture for a moment. A ring fills up around your hands while you hold. Mode switching only works
 while the current effect is at rest. Turn shortcuts off under **Gesture shortcuts** in the panel.
@@ -74,6 +90,7 @@ Other keys:
 - **H:** clean view
 - **F:** fullscreen
 - **D:** show tracking points
+- **S:** present slides on/off; **← →** or **Page Up / Page Down** change slides
 - **Z, M, C, G:** zoom, mirror, confetti, glitch (to test without gestures)
 
 ## Testing your voice

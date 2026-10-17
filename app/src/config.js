@@ -10,6 +10,7 @@ const DEFAULTS = {
   // Send calls the mirrored view you see, so drawings and names line up with you and read correctly.
   // Off: calls get the true camera view (writing then has to be flipped separately).
   callMirror: true,
+  slidesLink: "",
   // sound on this computer (headphones or speakers)
   monitorDevice: "",
   monitorVol: 0.9,

@@ -1,7 +1,7 @@
 // CAMBOT desktop app (Electron main process).
 // Serves the app folder at cambot://app/, grants camera/mic access, and manages the CAMBOT Camera driver.
 
-const { app, BrowserWindow, protocol, session, ipcMain, shell, systemPreferences, net } = require("electron");
+const { app, BrowserWindow, protocol, session, ipcMain, shell, systemPreferences, net, globalShortcut } = require("electron");
 const { autoUpdater } = require("electron-updater");
 const path = require("path");
 const fs = require("fs");
@@ -124,6 +124,32 @@ ipcMain.handle("update:install", () => {
   if (process.platform === "darwin") return shell.openExternal(RELEASES);
   autoUpdater.quitAndInstall(false, true);
 });
+
+/* ---------------------------------------------------------------- slides */
+// Downloads a Google Slides deck as a PDF. Works for decks shared as "Anyone with the link".
+ipcMain.handle("slides:fetch", async (_e, id) => {
+  if (!/^[a-zA-Z0-9_-]{20,}$/.test(String(id))) throw new Error("That doesn't look like a Google Slides link");
+  let r;
+  try { r = await net.fetch(`https://docs.google.com/presentation/d/${id}/export/pdf`); }
+  catch { throw new Error("Couldn't reach Google. Check your internet connection"); }
+  const type = r.headers.get("content-type") || "";
+  if (!r.ok || !/pdf/i.test(type)) {
+    throw new Error("Google didn't share that deck. In Slides, set Share → General access to “Anyone with the link”, or use File → Download → PDF and open the PDF here");
+  }
+  const buf = Buffer.from(await r.arrayBuffer());
+  return buf.buffer.slice(buf.byteOffset, buf.byteOffset + buf.byteLength);
+});
+
+// While presenting, a presentation clicker (Page Up / Page Down) changes slides even when the call app has focus.
+const CLICKER = { PageDown: 1, PageUp: -1 };
+ipcMain.on("slides:keys", (e, on) => {
+  for (const k of Object.keys(CLICKER)) if (globalShortcut.isRegistered(k)) globalShortcut.unregister(k);
+  if (!on) return;
+  for (const [k, dir] of Object.entries(CLICKER)) {
+    globalShortcut.register(k, () => { if (!e.sender.isDestroyed()) e.sender.send("slides:key", dir); });
+  }
+});
+app.on("will-quit", () => globalShortcut.unregisterAll());
 
 /* ---------------------------------------------------------------- IPC */
 ipcMain.on("cambot:info", e => {

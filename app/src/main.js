@@ -7,6 +7,7 @@ import { vcam } from "./vcam.js";
 import { readHands, readFace } from "./gestures.js";
 import { createHandTracker, createFaceTracker, createSegmenter } from "./trackers.js";
 import { cutout } from "./cutout.js";
+import { createPresenter } from "./present.js";
 import { Holds, withTimeout, rand, escapeHtml } from "./util.js";
 import { HAND_BONES, vignette, drawLabels } from "./draw.js";
 import { EFFECTS } from "./effects/index.js";
@@ -20,7 +21,20 @@ const textLayer = $("text"), tctx = textLayer.getContext("2d");    // effect tex
 // so writing reads correctly for the people on the call.
 const readLayer = document.createElement("canvas"), rctx = readLayer.getContext("2d");   // guides and tracking points, screen only
 const video = $("cam");
-const view = { W: 1280, H: 720, get mirror() { return cfg.mirror; } };
+const view = { W: 1280, H: 720, get mirror() { return cfg.mirror && !presenter.unmirrored; } };
+
+/* presenting: your slides as the background */
+const presenter = createPresenter({
+  emit: (name, data) => bus.emit(name, data),
+  // calls set to the true camera view need the picture un-mirrored while slides show, or they'd read backwards
+  wantUnmirror: () => cfg.mirror && !cfg.callMirror,
+  async fetchSlidesPdf(id) {
+    if (window.cambot && window.cambot.slides) return window.cambot.slides.fetch(id);
+    const r = await fetch(`https://docs.google.com/presentation/d/${id}/export/pdf`).catch(() => null);
+    if (!r || !r.ok) throw new Error("Loading a link only works in the desktop app. Download the deck as a PDF and open that instead");
+    return r.arrayBuffer();
+  },
+});
 const isDesktop = !!(window.cambot && window.cambot.isDesktop);
 const isMac = isDesktop ? window.cambot.platform === "darwin" : /Mac/.test(navigator.platform);
 // Virtual audio cable: VB-Cable on Windows, BlackHole on Mac.
@@ -166,7 +180,7 @@ function ensureSegmenter() {
     .catch(e => { cutout.failed = true; bus.emit("cutout_failed", e.message || String(e)); })
     .finally(() => { segStarting = false; });
 }
-const wantsCutout = () => (inst.backdropAmount || 0) > 0.003;
+const wantsCutout = () => (inst.backdropAmount || 0) > 0.003 || presenter.needsMask;
 
 /* virtual camera (desktop app only) */
 async function startVcam(stage) {
@@ -249,6 +263,7 @@ const trackN = { hands: 0, face: 0 };
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.1, (now - lastFrame) / 1000); lastFrame = now;
+  presenter.update(now);
   fpsAcc += dt; fpsN++;
   if (fpsAcc > 0.5) {
     const r = n => Math.round(n / fpsAcc);
@@ -271,7 +286,7 @@ function frame(now) {
   // Effect text goes on its own layer, so it reads correctly on screen and in the (un-mirrored) call picture.
   let labels = [];
   try { labels = (inst.labels && inst.labels(f)) || []; } catch (e) { console.error(e); }
-  labels = labels.map(l => ({ ...l, ...shortcuts.mapPoint(l, f.W, f.H) }));
+  labels = labels.map(l => { const z = shortcuts.mapPoint(l, f.W, f.H), c = presenter.mapPoint(z, f.W, f.H, f.t); return { ...l, x: c.x, y: c.y, alpha: (l.alpha ?? 1) * c.fade }; });
   tctx.clearRect(0, 0, f.W, f.H);
   let readable = null;
   if (inst.readable) {
@@ -282,7 +297,7 @@ function frame(now) {
   }
   drawLabels(tctx, labels);
   // With callMirror on, calls get exactly what you see here (mirrored), so nothing needs un-flipping.
-  if (vcam.running) vcam.send(out, now, cfg.mirror && !cfg.callMirror, labels, readable);
+  if (vcam.running) vcam.send(out, now, view.mirror && !cfg.callMirror, labels, readable);
   if (now - lastUI > 100) { lastUI = now; updateUI(); }
 }
 // Hand each new camera frame to whichever trackers are free. They run in workers and report back
@@ -324,7 +339,7 @@ function render(f) {
   const dk = g.darken || 0, ds = g.desaturate || 0, ct = g.contrast || 0;
   if (dk || ds || ct) octx.filter = `brightness(${(1 - dk).toFixed(3)}) saturate(${(1 - ds).toFixed(3)}) contrast(${(1 + ct).toFixed(3)})`;
   if (video.readyState >= 2) {
-    if (cfg.mirror) { octx.save(); octx.translate(W, 0); octx.scale(-1, 1); octx.drawImage(video, 0, 0, W, H); octx.restore(); }
+    if (view.mirror) { octx.save(); octx.translate(W, 0); octx.scale(-1, 1); octx.drawImage(video, 0, 0, W, H); octx.restore(); }
     else octx.drawImage(video, 0, 0, W, H);
   }
   octx.filter = "none";
@@ -338,6 +353,8 @@ function render(f) {
   if (bd > 0.003) {
     try { cutout.replaceBackground(octx, f, bd, (c, fr) => inst.backdrop(c, fr), view.mirror); } catch (e) { console.error(e); }
   }
+  // Presenting: your slide replaces the room behind you (after any effect background, before effects draw).
+  try { presenter.compose(octx, f, view.mirror); } catch (e) { console.error(e); }
   octx.save();
   try { inst.draw(octx, f); } catch (e) { console.error(e); }
   octx.restore();
@@ -345,6 +362,7 @@ function render(f) {
   vignette(octx, W, H, g.vignette || 0);
   octx.restore();
   try { shortcuts.post(octx, f); } catch (e) { console.error(e); }
+  try { presenter.post(octx, f); } catch (e) { console.error(e); }
 
   vctx.clearRect(0, 0, W, H);
   if (!document.body.classList.contains("clean")) {
@@ -438,7 +456,7 @@ function updateUI() {
     li.classList.toggle("done", i < idx);
     li.querySelector("em").textContent = i === idx && inst.progress > 0 ? `${Math.round(inst.progress * 100)}%` : "";
   });
-  $("stateChip").textContent = [`${effect.name} · ${inst.step}`, ...shortcuts.active, ...(cfg.voiceForce ? ["Voice effect forced on"] : [])].join(" · ");
+  $("stateChip").textContent = [`${effect.name} · ${inst.step}`, ...(presenter.on ? [`Presenting ${presenter.index + 1}/${presenter.pages}`] : []), ...shortcuts.active, ...(cfg.voiceForce ? ["Voice effect forced on"] : [])].join(" · ");
   $("stateChip").classList.toggle("on", idx > 0);
 
   const camS = SYSTEMS.camera.state, handS = SYSTEMS.hands.state;
@@ -460,6 +478,7 @@ function updateUI() {
     : face ? `eyes ${Math.round(face.eyes[0].open * 100)}% / ${Math.round(face.eyes[1].open * 100)}% open · mouth ${Math.round(face.mouthOpen * 100)}%` : "not found";
   $("micMeter").style.width = `${Math.min(1, audio.micLevel() * 6) * 100}%`;
   $("voiceLevel").style.width = `${audio.level * 100}%`;
+  slidesUI();
   if (vcam.running) $("vcamState").textContent = vcam.connected() ? "A call app is using CAMBOT Camera" : "Ready. No app is using it yet";
 }
 
@@ -542,12 +561,15 @@ $("cleanBtn").addEventListener("click", toggleClean);
 $("testBtn").addEventListener("click", () => inst.trigger && inst.trigger(currentFrame()));
 const currentFrame = () => ({ t: performance.now(), dt: 0, hands, face, W: view.W, H: view.H });
 window.addEventListener("keydown", e => {
-  if (e.target.matches("input, select, textarea") && e.key !== " ") return;
+  if (e.target.matches && e.target.matches("input, select, textarea") && e.key !== " ") return;
   const k = e.key.toLowerCase();
   if (k === "h") toggleClean();
   else if (k === "f") { (document.fullscreenElement ? document.exitFullscreen() : $("stage").requestFullscreen()).catch(() => {}); }
   else if (k === " ") { e.preventDefault(); inst.trigger && inst.trigger(currentFrame()); }
   else if (k === "p") { inst.reset && inst.reset(currentFrame()); shortcuts.reset(); }
+  else if (k === "s") togglePresent();
+  else if (e.key === "ArrowRight" || e.key === "PageDown") { if (presenter.on) { e.preventDefault(); presenter.next(); } }
+  else if (e.key === "ArrowLeft" || e.key === "PageUp") { if (presenter.on) { e.preventDefault(); presenter.prev(); } }
   else if (e.key === "Backspace") { e.preventDefault(); inst.undo && inst.undo(); }
   else if (k === "z") shortcuts.trigger("zoom", currentFrame());
   else if (k === "m") shortcuts.trigger("mirror", currentFrame());
@@ -565,8 +587,61 @@ const shortcuts = createShortcuts({
   switchTo: id => useEffect(id),
   currentMode: () => effect.id,
   modeIsIdle,
+  mirrored: () => view.mirror,
+  present: {
+    get on() { return presenter.on; },
+    get loaded() { return presenter.loaded; },
+    set: want => setPresent(want),
+    next: () => presenter.next(),
+    prev: () => presenter.prev(),
+  },
 });
 $("shortcutList").innerHTML = SHORTCUTS.map(s => `<li><b>${escapeHtml(s.name)}</b><span>${escapeHtml(s.how)}</span></li>`).join("");
+
+/* ---------------------------------------------------------------- presenting panel */
+function slidesUI() {
+  $("presentBtn").disabled = !presenter.loaded && !cfg.slidesLink;
+  $("presentBtn").textContent = presenter.on ? "Stop presenting (S)" : "Present (S)";
+  $("slidePrev").disabled = $("slideNext").disabled = !presenter.loaded;
+  $("slideNum").textContent = presenter.loaded ? `${presenter.index + 1} / ${presenter.pages}` : "–";
+}
+async function loadSlides(load, what) {
+  $("slidesNote").textContent = `Loading ${what}…`;
+  try {
+    const r = await load();
+    ensureSegmenter();   // warm up the person cut-out now, so it's ready the moment you start presenting
+    $("slidesNote").textContent = `${r.name}: ${r.pages} slide${r.pages === 1 ? "" : "s"} ready. Press Present, or part your hands like curtains.`;
+    return true;
+  } catch (e) {
+    $("slidesNote").textContent = e.message || String(e);
+    return false;
+  } finally { slidesUI(); }
+}
+const loadLink = () => loadSlides(() => presenter.openLink(cfg.slidesLink), "your slides");
+const openFile = file => loadSlides(async () => presenter.openPdf(new Uint8Array(await file.arrayBuffer()), file.name.replace(/\.pdf$/i, "")), file.name);
+async function setPresent(want) {
+  if (want && !presenter.loaded) {
+    if (!cfg.slidesLink || !(await loadLink())) { $("slidesNote").textContent = "Load some slides first: paste a link or open a PDF."; bus.emit("present_no_slides"); return; }
+  }
+  presenter.set(want);
+  if (window.cambot && window.cambot.slides) window.cambot.slides.keys(presenter.on);   // clicker works even while the call app has focus
+  slidesUI();
+}
+const togglePresent = () => setPresent(!presenter.on);
+$("slidesLink").value = cfg.slidesLink || "";
+$("slidesLoad").addEventListener("click", () => { cfg.slidesLink = $("slidesLink").value.trim(); save(); if (cfg.slidesLink) loadLink(); });
+$("slidesLink").addEventListener("keydown", e => { if (e.key === "Enter") $("slidesLoad").click(); });
+$("slidesFile").addEventListener("change", e => { const f = e.target.files[0]; if (f) openFile(f); e.target.value = ""; });
+window.addEventListener("dragover", e => { if ([...e.dataTransfer.items].some(i => i.kind === "file")) e.preventDefault(); });
+window.addEventListener("drop", e => {
+  const f = [...e.dataTransfer.files].find(x => /pdf$/i.test(x.type) || /\.pdf$/i.test(x.name));
+  if (f) { e.preventDefault(); openFile(f); }
+});
+$("presentBtn").addEventListener("click", togglePresent);
+$("slidePrev").addEventListener("click", () => presenter.prev());
+$("slideNext").addEventListener("click", () => presenter.next());
+if (window.cambot && window.cambot.slides) window.cambot.slides.onKey(dir => { if (presenter.on) (dir > 0 ? presenter.next() : presenter.prev()); });
+slidesUI();
 
 /* ---------------------------------------------------------------- start */
 if (isMac) {

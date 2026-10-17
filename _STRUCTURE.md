@@ -9,6 +9,7 @@ cambot/
 │   │   ├── main.js             Start-up, frame loop, effect switching, panel
 │   │   ├── effects/            One file per effect. index.js lists them
 │   │   ├── gestures.js         Tracking points → fist / open / point / L / peace / thumbs up / eyes / mouth
+│   │   ├── present.js          Slides behind you: loading decks, card turn, slide changes
 │   │   ├── cutout.js           Person cut-out: lets effects replace the room behind you
 │   │   ├── shortcuts.js        Gestures that work in every mode: switch mode, zoom, mirror, confetti, glitch
 │   │   ├── trackers.js         Starts hand and face tracking, each in its own worker
